@@ -1,0 +1,145 @@
+/*
+
+This CSS file will be included with your plugin, and
+available in the app when your plugin is enabled.
+
+If your plugin does not need CSS, delete this file.
+
+*/
+
+/* Canvas MD Side Editor panel styles */
+.canvas-md-side-editor-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  min-height: 0;
+  width: min(48%, 640px);
+  background: var(--background-primary);
+  border-left: 1px solid var(--background-modifier-border);
+  box-shadow: var(--shadow-s);
+  transform: translateX(100%);
+  transition: transform 180ms ease-out;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  /* Editor padding variables so users/themes can tune spacing */
+  --cmside-editor-padding-top: 36px;
+  --cmside-editor-padding-x: 16px;
+  --cmside-editor-padding-bottom: 16px;
+}
+.canvas-md-side-editor-panel.open { transform: translateX(0); }
+
+/* Toolbar */
+.canvas-md-side-editor-panel .cmside-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 36px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+.canvas-md-side-editor-panel .cmside-title {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+.canvas-md-side-editor-panel .cmside-actions { display: flex; gap: 6px; }
+.canvas-md-side-editor-panel .cmside-toggle-preview-btn,
+.canvas-md-side-editor-panel .cmside-close-btn {
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  padding: 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+.canvas-md-side-editor-panel .cmside-toggle-preview-btn { width: 24px; padding: 0; display: grid; place-items: center; }
+.canvas-md-side-editor-panel .cmside-actions .cmside-icon { width: 14px; height: 14px; display: block; }
+.canvas-md-side-editor-panel .cmside-close-btn:hover {
+  background: var(--background-modifier-hover);
+}
+.canvas-md-side-editor-panel .cmside-toggle-preview-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.canvas-md-side-editor-panel .cmside-split {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  gap: 0;
+  padding: 0;
+  overscroll-behavior: contain;
+}
+/* Panel left-edge resizer */
+.canvas-md-side-editor-panel .cmside-panel-resizer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  background: transparent;
+  z-index: 2;
+}
+.canvas-md-side-editor-panel .cmside-panel-resizer:hover { background: color-mix(in oklab, var(--background-modifier-border) 70%, transparent); }
+.canvas-md-side-editor-panel.resizing-panel, .canvas-md-side-editor-panel.resizing-panel * { user-select: none; cursor: ew-resize; }
+.canvas-md-side-editor-panel .cmside-pane {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.canvas-md-side-editor-panel .cmside-pane-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+}
+/* Collapsed preview state */
+.canvas-md-side-editor-panel.preview-collapsed .cmside-pane-preview { display: none; }
+.canvas-md-side-editor-panel.preview-collapsed .cmside-divider { display: none; }
+.canvas-md-side-editor-panel.preview-collapsed .cmside-editor-root { border-right: none; }
+.canvas-md-side-editor-panel .cmside-editor-root {
+  flex: 1 1 auto;
+  overflow: hidden;
+  min-height: 0;
+  background: var(--background-primary);
+  border-right: 1px solid var(--background-modifier-border);
+}
+.canvas-md-side-editor-panel .cmside-editor-root .cm-editor { height: 100%; }
+.canvas-md-side-editor-panel .cmside-editor-root .cm-scroller {
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--cmside-editor-padding-top) var(--cmside-editor-padding-x) var(--cmside-editor-padding-bottom);
+  box-sizing: border-box;
+}
+.canvas-md-side-editor-panel .cmside-preview-root {
+  flex: 1 1 auto;
+  overflow: auto;
+  min-height: 0;
+  height: 100%;
+}
+.canvas-md-side-editor-panel .cmside-preview-root.markdown-reading-view,
+.canvas-md-side-editor-panel .cmside-preview-root.markdown-preview-view { height: 100%; min-height: 0; }
+.canvas-md-side-editor-panel .cmside-preview-root img { max-width: 100%; height: auto; }
+
+.canvas-md-side-editor-panel .cmside-divider {
+  width: 6px;
+  cursor: col-resize;
+  background: var(--background-modifier-border);
+  opacity: 0.7;
+}
+.canvas-md-side-editor-panel .cmside-divider:hover { background: var(--interactive-accent); opacity: 0.85; }
+.canvas-md-side-editor-panel.resizing, .canvas-md-side-editor-panel.resizing * { user-select: none; cursor: col-resize; }
