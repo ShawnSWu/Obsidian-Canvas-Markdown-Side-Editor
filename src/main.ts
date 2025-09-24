@@ -401,6 +401,33 @@ class CanvasMdSideEditorPlugin extends Plugin {
       } catch {}
     };
 
+    // Close side panel immediately when Canvas' own inline editor gets focus or typing begins
+    const onFocusIn = async (evt: FocusEvent) => {
+      try {
+        const target = evt.target as HTMLElement | null;
+        if (!target) return;
+        // Ignore focus inside our side panel
+        if (this.panelEl && this.panelEl.contains(target)) return;
+        if (this.isCanvasInlineEditTarget(target)) {
+          try { console.debug?.('CanvasMdSideEditor: focus entered Canvas inline editor — closing side panel'); } catch {}
+          if (this.panelEl) await this.saveAndClose(view);
+        }
+      } catch {}
+    };
+
+    const onKeyDown = async (evt: KeyboardEvent) => {
+      try {
+        // In case focusin didn't fire for some reason, detect typing within Canvas inline editor
+        const target = evt.target as HTMLElement | null;
+        if (!target) return;
+        if (this.panelEl && this.panelEl.contains(target)) return;
+        if (this.isCanvasInlineEditTarget(target)) {
+          try { console.debug?.('CanvasMdSideEditor: keydown inside Canvas inline editor — closing side panel'); } catch {}
+          if (this.panelEl) await this.saveAndClose(view);
+        }
+      } catch {}
+    };
+
     // Use bubbling phase for click so Canvas can update selection first
     for (const t of targets) {
       // click listener removed to avoid false triggers from long-press/drag
@@ -408,6 +435,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
       this.registerDomEvent(t, 'pointermove', onPointerMove);
       this.registerDomEvent(t, 'pointerup', onPointerUp);
       this.registerDomEvent(t, 'dblclick', onDblClick, { capture: true } as AddEventListenerOptions);
+      this.registerDomEvent(t, 'focusin', onFocusIn, { capture: true } as AddEventListenerOptions);
+      this.registerDomEvent(t, 'keydown', onKeyDown, { capture: true } as AddEventListenerOptions);
       // For debugging; you can comment these out later
       try { console.debug?.('CanvasMdSideEditor: attached listeners on', t); } catch {}
     }
@@ -433,6 +462,25 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
   private isOnCanvasView(view: any): boolean {
     return !!view && view.getViewType && view.getViewType() === 'canvas';
+  }
+
+  private isCanvasInlineEditTarget(el: HTMLElement | null): boolean {
+    try {
+      if (!el) return false;
+      // Exclude our side panel
+      if (this.panelEl && this.panelEl.contains(el)) return false;
+      // Must be within a Canvas card element
+      const card = el.closest('.canvas-node, .canvas-card, [data-node-id], [data-id]') as HTMLElement | null;
+      if (!card) return false;
+      // Typical editable areas inside Canvas cards
+      if (el.closest('[contenteditable="true"], textarea, input[type="text"], .cm-editor')) return true;
+      // Some themes/plugins toggle editing classes on the card
+      const cls = (card.className || '').toLowerCase();
+      if (cls.includes('editing') || cls.includes('is-editing')) return true;
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   
