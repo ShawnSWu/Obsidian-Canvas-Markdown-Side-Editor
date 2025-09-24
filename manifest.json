@@ -1,7 +1,7 @@
 {
 	"id": "canvas-md-side-editor",
 	"name": "Canvas MD Side Editor",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"minAppVersion": "1.1.0",
 	"description": "Open a Canvas card's linked Markdown file in a right-side editor pane with one click.",
 	"author": "Shawn Wu",
