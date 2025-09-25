@@ -7,6 +7,7 @@
 ## Demo
 Edit Canvas Markdown cards from a right-side editor with live preview and auto-save. Click a Canvas card and start typing – as fast and natural as editing a normal note.
 
+[![Watch the video](https://img.youtube.com/vi/GQvd3sjzuRY/0.jpg)](https://youtu.be/GQvd3sjzuRY)
 
 
 ## Features
