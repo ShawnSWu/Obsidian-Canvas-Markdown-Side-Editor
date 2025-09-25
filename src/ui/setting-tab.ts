@@ -55,5 +55,41 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
           await this.plugin.saveData(this.plugin.settings as CanvasMdSideEditorSettings);
         });
       });
+
+    containerEl.createEl('h3', { text: 'Typography' });
+
+    new Setting(containerEl)
+      .setName('Editor font size (px)')
+      .setDesc('Set the font size for the side editor. Use 0 to follow your theme default.')
+      .addText((tb) => {
+        tb.inputEl.type = 'number';
+        tb.inputEl.min = '0';
+        tb.setValue(String(this.plugin.settings.editorFontSize ?? 0));
+        tb.onChange(async (v) => {
+          const n = Number(v);
+          if (isFinite(n) && n >= 0) {
+            this.plugin.settings.editorFontSize = Math.round(n);
+            await this.plugin.saveData(this.plugin.settings as CanvasMdSideEditorSettings);
+            try { this.plugin.panelController?.applyFontSizes?.(); } catch {}
+          }
+        });
+      });
+
+    new Setting(containerEl)
+      .setName('Preview font size (px)')
+      .setDesc('Set the font size for the preview pane. Use 0 to follow your theme default.')
+      .addText((tb) => {
+        tb.inputEl.type = 'number';
+        tb.inputEl.min = '0';
+        tb.setValue(String(this.plugin.settings.previewFontSize ?? 0));
+        tb.onChange(async (v) => {
+          const n = Number(v);
+          if (isFinite(n) && n >= 0) {
+            this.plugin.settings.previewFontSize = Math.round(n);
+            await this.plugin.saveData(this.plugin.settings as CanvasMdSideEditorSettings);
+            try { this.plugin.panelController?.applyFontSizes?.(); } catch {}
+          }
+        });
+      });
   }
 }

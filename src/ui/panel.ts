@@ -92,6 +92,21 @@ export class PanelController {
     // Initialize preview collapsed UI
     if (this.previewCollapsed) panel.classList.add('preview-collapsed');
 
+    // Apply initial font sizes from settings
+    try {
+      const s = this.getSettings();
+      if (s?.editorFontSize && s.editorFontSize > 0) {
+        editorRoot.style.fontSize = `${Math.round(s.editorFontSize)}px`;
+      } else {
+        editorRoot.style.fontSize = '';
+      }
+      if (s?.previewFontSize && s.previewFontSize > 0) {
+        previewRoot.style.fontSize = `${Math.round(s.previewFontSize)}px`;
+      } else {
+        previewRoot.style.fontSize = '';
+      }
+    } catch {}
+
     // Listeners
     this.setupPanelResize(panel);
     this.setupSplitResize(panel, editorPane, previewPane, divider);
@@ -124,6 +139,20 @@ export class PanelController {
     this.previewCollapsed = !!collapsed;
     if (this.previewCollapsed) this.panelEl.classList.add('preview-collapsed');
     else this.panelEl.classList.remove('preview-collapsed');
+  }
+
+  applyFontSizes() {
+    try {
+      const s = this.getSettings();
+      if (this.editorRootEl) {
+        if (s?.editorFontSize && s.editorFontSize > 0) this.editorRootEl.style.fontSize = `${Math.round(s.editorFontSize)}px`;
+        else this.editorRootEl.style.fontSize = '';
+      }
+      if (this.previewRootEl) {
+        if (s?.previewFontSize && s.previewFontSize > 0) this.previewRootEl.style.fontSize = `${Math.round(s.previewFontSize)}px`;
+        else this.previewRootEl.style.fontSize = '';
+      }
+    } catch {}
   }
 
   // Internal wiring
