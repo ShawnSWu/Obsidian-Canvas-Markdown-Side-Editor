@@ -92,18 +92,28 @@ export class PanelController {
     // Initialize preview collapsed UI
     if (this.previewCollapsed) panel.classList.add('preview-collapsed');
 
-    // Apply initial font sizes from settings
+    // Initialize and apply font sizes from settings (capture theme defaults if unset or legacy <= 0)
     try {
       const s = this.getSettings();
-      if (s?.editorFontSize && s.editorFontSize > 0) {
-        editorRoot.style.fontSize = `${Math.round(s.editorFontSize)}px`;
-      } else {
-        editorRoot.style.fontSize = '';
-      }
-      if (s?.previewFontSize && s.previewFontSize > 0) {
-        previewRoot.style.fontSize = `${Math.round(s.previewFontSize)}px`;
-      } else {
-        previewRoot.style.fontSize = '';
+      let changed = false;
+      // Capture current computed sizes as defaults if null
+      if (s) {
+        if (s.editorFontSize == null || (typeof s.editorFontSize === 'number' && s.editorFontSize <= 0)) {
+          const ef = parseInt(getComputedStyle(editorRoot).fontSize || '16', 10);
+          if (isFinite(ef)) { s.editorFontSize = Math.max(8, Math.round(ef)); changed = true; }
+        }
+        if (s.previewFontSize == null || (typeof s.previewFontSize === 'number' && s.previewFontSize <= 0)) {
+          const pf = parseInt(getComputedStyle(previewRoot).fontSize || '16', 10);
+          if (isFinite(pf)) { s.previewFontSize = Math.max(8, Math.round(pf)); changed = true; }
+        }
+        if (changed) {
+          try { this.persistSettings(s); } catch {}
+        }
+        // Apply sizes
+        if (s.editorFontSize != null && s.editorFontSize > 0) editorRoot.style.fontSize = `${Math.round(s.editorFontSize)}px`;
+        else editorRoot.style.fontSize = '';
+        if (s.previewFontSize != null && s.previewFontSize > 0) previewRoot.style.fontSize = `${Math.round(s.previewFontSize)}px`;
+        else previewRoot.style.fontSize = '';
       }
     } catch {}
 
@@ -145,11 +155,11 @@ export class PanelController {
     try {
       const s = this.getSettings();
       if (this.editorRootEl) {
-        if (s?.editorFontSize && s.editorFontSize > 0) this.editorRootEl.style.fontSize = `${Math.round(s.editorFontSize)}px`;
+        if (s?.editorFontSize != null && s.editorFontSize > 0) this.editorRootEl.style.fontSize = `${Math.round(s.editorFontSize)}px`;
         else this.editorRootEl.style.fontSize = '';
       }
       if (this.previewRootEl) {
-        if (s?.previewFontSize && s.previewFontSize > 0) this.previewRootEl.style.fontSize = `${Math.round(s.previewFontSize)}px`;
+        if (s?.previewFontSize != null && s.previewFontSize > 0) this.previewRootEl.style.fontSize = `${Math.round(s.previewFontSize)}px`;
         else this.previewRootEl.style.fontSize = '';
       }
     } catch {}

@@ -60,14 +60,14 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Editor font size (px)')
-      .setDesc('Set the font size for the side editor. Use 0 to follow your theme default.')
+      .setDesc('Set the font size for the side editor. Initially uses your theme’s current size when the panel first opens.')
       .addText((tb) => {
         tb.inputEl.type = 'number';
-        tb.inputEl.min = '0';
-        tb.setValue(String(this.plugin.settings.editorFontSize ?? 0));
+        tb.inputEl.min = '8';
+        tb.setValue(String(this.plugin.settings.editorFontSize ?? 16));
         tb.onChange(async (v) => {
           const n = Number(v);
-          if (isFinite(n) && n >= 0) {
+          if (isFinite(n) && n >= 8) {
             this.plugin.settings.editorFontSize = Math.round(n);
             await this.plugin.saveData(this.plugin.settings as CanvasMdSideEditorSettings);
             try { this.plugin.panelController?.applyFontSizes?.(); } catch {}
@@ -77,14 +77,14 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Preview font size (px)')
-      .setDesc('Set the font size for the preview pane. Use 0 to follow your theme default.')
+      .setDesc('Set the font size for the preview pane. Initially uses your theme’s current size when the panel first opens.')
       .addText((tb) => {
         tb.inputEl.type = 'number';
-        tb.inputEl.min = '0';
-        tb.setValue(String(this.plugin.settings.previewFontSize ?? 0));
+        tb.inputEl.min = '8';
+        tb.setValue(String(this.plugin.settings.previewFontSize ?? 16));
         tb.onChange(async (v) => {
           const n = Number(v);
-          if (isFinite(n) && n >= 0) {
+          if (isFinite(n) && n >= 8) {
             this.plugin.settings.previewFontSize = Math.round(n);
             await this.plugin.saveData(this.plugin.settings as CanvasMdSideEditorSettings);
             try { this.plugin.panelController?.applyFontSizes?.(); } catch {}
