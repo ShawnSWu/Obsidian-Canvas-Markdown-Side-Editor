@@ -1,8 +1,7 @@
 # Canvas MD Side Editor
-
-> If you’re a Canvas enthusiast like me, you won’t want to miss this plugin.  
-> It allows you to open a right-side Markdown editor directly from the **“Big picture”** view of your > Canvas, so you can > edit without zooming in. 
-> With live preview and auto-save, you can format while writing, move smoothly between cards, and keep > your thoughts > flowing without interruption.
+If you’re a Canvas enthusiast like me, you won’t want to miss this plugin.  
+It allows you to open a right-side Markdown editor directly from the **“Big picture”** view of your > Canvas, so you can > edit without zooming in. 
+With live preview and auto-save, you can format while writing, move smoothly between cards, and keep > your thoughts > flowing without interruption.
 
 ## Demo
 Edit Canvas Markdown cards from a right-side editor with live preview and auto-save. Click a Canvas card and start typing – as fast and natural as editing a normal note.
