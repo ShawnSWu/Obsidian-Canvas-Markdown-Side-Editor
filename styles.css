@@ -77,6 +77,11 @@ If your plugin does not need CSS, delete this file.
   padding: 0;
   overscroll-behavior: contain;
 }
+/* Read-only state: hide editor and divider; make preview full width; hide toggle button */
+.canvas-md-side-editor-panel.read-only .cmside-pane-editor { display: none; }
+.canvas-md-side-editor-panel.read-only .cmside-divider { display: none; }
+.canvas-md-side-editor-panel.read-only .cmside-pane-preview { flex: 1 1 auto; }
+.canvas-md-side-editor-panel.read-only .cmside-toggle-preview-btn { display: none; }
 /* Panel left-edge resizer */
 .canvas-md-side-editor-panel .cmside-panel-resizer {
   position: absolute;

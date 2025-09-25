@@ -46,13 +46,14 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('Start with preview hidden')
-      .setDesc('When opening the panel, start with the preview pane collapsed by default.')
+      .setName('Read only')
+      .setDesc('When enabled, the side panel shows only the Preview pane (no editor).')
       .addToggle((tg) => {
-        tg.setValue(this.plugin.settings.defaultPreviewCollapsed);
+        tg.setValue(!!this.plugin.settings.readOnly);
         tg.onChange(async (val) => {
-          this.plugin.settings.defaultPreviewCollapsed = !!val;
+          this.plugin.settings.readOnly = !!val;
           await this.plugin.saveData(this.plugin.settings as CanvasMdSideEditorSettings);
+          try { this.plugin.panelController?.setReadOnly?.(!!val); } catch {}
         });
       });
 

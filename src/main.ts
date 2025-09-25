@@ -68,12 +68,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
     }
     this.addSettingTab(new CanvasMdSideEditorSettingTab((this as any).app, this));
 
-    // Initialize preview collapsed state (persisted or default)
-    try {
-      this.previewCollapsed = typeof (this.settings as any).lastPreviewCollapsed === 'boolean'
-        ? !!(this.settings as any).lastPreviewCollapsed
-        : !!this.settings.defaultPreviewCollapsed;
-    } catch {}
+    // Start with preview visible by default. Collapsed state is session-only.
+    this.previewCollapsed = false;
 
     // Styles are now provided by styles.css bundled with the plugin
     // Track canvas changes
@@ -536,9 +532,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
         this.previewCollapsed = !this.previewCollapsed;
         this.panelController!.setPreviewCollapsed(this.previewCollapsed);
         setToggleIcon(this.previewCollapsed);
-        // Persist the user's last choice
-        (this.settings as any).lastPreviewCollapsed = this.previewCollapsed;
-        this.saveData(this.settings);
       });
       this.panelController.onClose(() => { try { this.saveAndClose(view); } catch {} });
       return; // use controller-built panel; skip legacy DOM building below
@@ -579,30 +572,32 @@ class CanvasMdSideEditorPlugin extends Plugin {
     }
 
     // Create or update CM view
-    if (this.cmView) {
-      const tr = this.cmView.state.update({
-        changes: { from: 0, to: this.cmView.state.doc.length, insert: initial },
-      });
-      this.cmView.dispatch(tr);
-    } else {
-      this.cmView = createEditor(
-        this.editorRootEl!,
-        initial,
-        () => this.schedulePreviewRender(),
-        (files, view) => { this.handlePasteImages(files, view).catch(() => {}); }
-      );
-      // Ensure parent carries Obsidian classes for styling
-      this.editorRootEl!.classList.add('markdown-source-view', 'cm-s-obsidian', 'mod-cm6');
-      // Sync scroll with preview
-      this.cmScrollHandler = () => { this.syncPreviewScroll(); };
-      const v = this.cmView as EditorView;
-      v.scrollDOM.addEventListener('scroll', this.cmScrollHandler, { passive: true });
-      // Ensure scroller is scrollable and sized
-      try {
-        v.scrollDOM.style.overflow = 'auto';
-        v.scrollDOM.style.height = '100%';
-        (v.scrollDOM.style as any).overscrollBehavior = 'contain';
-      } catch {}
+    if (!this.settings.readOnly) {
+      if (this.cmView) {
+        const tr = this.cmView.state.update({
+          changes: { from: 0, to: this.cmView.state.doc.length, insert: initial },
+        });
+        this.cmView.dispatch(tr);
+      } else {
+        this.cmView = createEditor(
+          this.editorRootEl!,
+          initial,
+          () => this.schedulePreviewRender(),
+          (files, view) => { this.handlePasteImages(files, view).catch(() => {}); }
+        );
+        // Ensure parent carries Obsidian classes for styling
+        this.editorRootEl!.classList.add('markdown-source-view', 'cm-s-obsidian', 'mod-cm6');
+        // Sync scroll with preview
+        this.cmScrollHandler = () => { this.syncPreviewScroll(); };
+        const v = this.cmView as EditorView;
+        v.scrollDOM.addEventListener('scroll', this.cmScrollHandler, { passive: true });
+        // Ensure scroller is scrollable and sized
+        try {
+          v.scrollDOM.style.overflow = 'auto';
+          v.scrollDOM.style.height = '100%';
+          (v.scrollDOM.style as any).overscrollBehavior = 'contain';
+        } catch {}
+      }
     }
 
     // Initial render
@@ -615,8 +610,10 @@ class CanvasMdSideEditorPlugin extends Plugin {
       const textNow = this.cmView?.state.doc.toString() ?? initial;
       setTimeout(() => { this.renderPreview(textNow); }, 80);
     } catch {}
-    // Focus editor for immediate typing
-    try { this.cmView?.focus(); } catch {}
+    // Focus editor for immediate typing (skip if read-only)
+    if (!this.settings.readOnly) {
+      try { this.cmView?.focus(); } catch {}
+    }
   }
 
   private async saveCurrentEdits(view: any) {

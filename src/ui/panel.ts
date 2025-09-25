@@ -13,6 +13,7 @@ export class PanelController {
   private getSettings: () => CanvasMdSideEditorSettings;
   private persistSettings: (s: CanvasMdSideEditorSettings) => Promise<void> | void;
   private previewCollapsed: boolean;
+  private readOnly: boolean = false;
 
   private panelEl: HTMLElement | null = null;
   private editorRootEl: HTMLElement | null = null;
@@ -95,6 +96,12 @@ export class PanelController {
     // Ensure layout reflects collapsed state (editor should occupy full width)
     this.applyCollapsedLayout();
 
+    // Apply initial read-only from settings if available
+    try {
+      const s = this.getSettings();
+      this.setReadOnly(!!s?.readOnly);
+    } catch {}
+
     // Initialize and apply font sizes from settings (capture theme defaults if unset or legacy <= 0)
     try {
       const s = this.getSettings();
@@ -149,10 +156,25 @@ export class PanelController {
   // UI state
   setPreviewCollapsed(collapsed: boolean) {
     if (!this.panelEl) return;
+    if (this.readOnly) collapsed = false; // force visible in read-only
     this.previewCollapsed = !!collapsed;
     if (this.previewCollapsed) this.panelEl.classList.add('preview-collapsed');
     else this.panelEl.classList.remove('preview-collapsed');
     this.applyCollapsedLayout();
+  }
+
+  setReadOnly(ro: boolean) {
+    this.readOnly = !!ro;
+    if (!this.panelEl) return;
+    if (this.readOnly) {
+      this.panelEl.classList.add('read-only');
+      // ensure preview is visible and layout updated
+      this.setPreviewCollapsed(false);
+    } else {
+      this.panelEl.classList.remove('read-only');
+      // restore layout based on current collapsed state
+      this.setPreviewCollapsed(this.previewCollapsed);
+    }
   }
 
   private applyCollapsedLayout() {
