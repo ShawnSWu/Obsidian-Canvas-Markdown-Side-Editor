@@ -16,15 +16,6 @@ Click a Canvas card and start typing – as fast and natural as editing a normal
 - **⚡ Open-and-edit instantly**  
   - 🖱️ Click a Canvas Text card or a File card pointing to a `.md` file to open the side editor automatically.
 
-- **👀 Live preview**  
-  - Built-in MarkdownRenderer preview styled by your Obsidian theme.  
-  - 🔄 Toggle preview on/off and ↔️ resize the panel by dragging.
-
-- **📖 Read-only mode**  
-  - Show only the Preview pane with the editor hidden.  
-  - Useful when you want a clean reading panel.  
-  - ⚙️ Enable in *Settings → Community Plugins → Canvas MD Side Editor → Read only*.
-
 - **💾 Auto-save**  
   - Changes are saved when switching cards or clicking the Canvas background.
 
@@ -34,13 +25,24 @@ Click a Canvas card and start typing – as fast and natural as editing a normal
 - **🖼️ Paste images into the side editor**  
   - Paste screenshots or images directly. Files are saved into your preferred 📂 attachment folder and linked according to your Obsidian settings.
 
+- **👀 Live preview**  
+  - Built-in MarkdownRenderer preview styled by your Obsidian theme.  
+  - 🔄 Toggle preview on/off and ↔️ resize the panel by dragging.
+![callapse](https://github.com/user-attachments/assets/31ad47e6-669c-4c2c-87d9-4642dab8317b)
+
+- **📖 Read-only mode**  
+  - Show only the Preview pane with the editor hidden.  
+  - Useful when you want a clean reading panel.  
+  - ⚙️ Enable in *Settings → Community Plugins → Canvas MD Side Editor → Read only*.
+![readonly](https://github.com/user-attachments/assets/19f07d55-6582-4595-8ba0-8f761502f0ee)
+
 - **🛡️ Robust Canvas support**
 
 ---
 
 ## 📦 Installation
 
-📥 Install via **Obsidian Community Plugins** or manually from GitHub [Releases](https://github.com/ShawnSWu/canvas-md-side-editor/releases).
+📥 Install via **Obsidian Community Plugins** or manually from GitHub [Releases]([https://github.com/ShawnSWu/canvas-md-side-editor/releases](https://github.com/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor/releases/)).
 
 ---
 
@@ -84,3 +86,7 @@ More usage and examples can be found in this README and the release notes.
   - ✨ Auto-close the side editor when you start editing directly inside a Canvas card (focus or type).  
     This prevents conflicting edits between the Canvas inline editor and the side panel.
   - 🎯 Minor interaction polish around double-click zoom suppression when the side panel is open.
+  - Adjustable text size for both panes.
+  - New settings: "Editor font size (px)" and "Preview font size (px)".
+  ![fontsize](https://github.com/user-attachments/assets/70a9a4fd-0d55-48bb-beb9-690a02c26946)
+
