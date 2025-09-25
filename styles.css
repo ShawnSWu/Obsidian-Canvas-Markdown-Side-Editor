@@ -109,6 +109,7 @@ If your plugin does not need CSS, delete this file.
 /* Collapsed preview state */
 .canvas-md-side-editor-panel.preview-collapsed .cmside-pane-preview { display: none; }
 .canvas-md-side-editor-panel.preview-collapsed .cmside-divider { display: none; }
+.canvas-md-side-editor-panel.preview-collapsed .cmside-pane-editor { flex: 1 1 auto !important; }
 .canvas-md-side-editor-panel.preview-collapsed .cmside-editor-root { border-right: none; }
 .canvas-md-side-editor-panel .cmside-editor-root {
   flex: 1 1 auto;

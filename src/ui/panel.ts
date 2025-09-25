@@ -25,6 +25,7 @@ export class PanelController {
   private panelResizerEl!: HTMLElement;
   private detachFns: Array<() => void> = [];
   private containerPosPatched = false;
+  private editorFlexBeforeCollapse: string | null = null;
 
   constructor(
     container: HTMLElement,
@@ -91,6 +92,8 @@ export class PanelController {
 
     // Initialize preview collapsed UI
     if (this.previewCollapsed) panel.classList.add('preview-collapsed');
+    // Ensure layout reflects collapsed state (editor should occupy full width)
+    this.applyCollapsedLayout();
 
     // Initialize and apply font sizes from settings (capture theme defaults if unset or legacy <= 0)
     try {
@@ -149,6 +152,28 @@ export class PanelController {
     this.previewCollapsed = !!collapsed;
     if (this.previewCollapsed) this.panelEl.classList.add('preview-collapsed');
     else this.panelEl.classList.remove('preview-collapsed');
+    this.applyCollapsedLayout();
+  }
+
+  private applyCollapsedLayout() {
+    try {
+      if (!this.panelEl) return;
+      // When preview is collapsed, make editor take full width, but remember previous flex
+      if (this.previewCollapsed) {
+        if (this.editorPaneEl) {
+          if (this.editorFlexBeforeCollapse == null) {
+            this.editorFlexBeforeCollapse = this.editorPaneEl.style.flex || '';
+          }
+          this.editorPaneEl.style.flex = '1 1 auto';
+        }
+      } else {
+        // Restore the editor width behavior after expanding preview
+        if (this.editorPaneEl) {
+          this.editorPaneEl.style.flex = this.editorFlexBeforeCollapse ?? '';
+        }
+        this.editorFlexBeforeCollapse = null;
+      }
+    } catch {}
   }
 
   applyFontSizes() {
