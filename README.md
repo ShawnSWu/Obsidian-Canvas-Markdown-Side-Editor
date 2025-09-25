@@ -15,6 +15,9 @@ Edit Canvas Markdown cards from a right-side editor with live preview and auto-s
 - **Live preview**
   - Built-in MarkdownRenderer preview styled by your Obsidian theme.
   - Toggle preview on/off and resize the panel by dragging.
+- **Read-only mode**
+  - Show only the Preview pane with the editor hidden. Useful when you want a clean reading panel.
+  - Enable in Settings → Community Plugins → Canvas MD Side Editor → Read only.
 - **Auto-save**
   - Changes are saved when switching cards or clicking the Canvas background.
 - **Auto-close while editing inside Canvas (v1.1.0)**
@@ -30,6 +33,19 @@ Install via Obsidian Community Plugins or manually from GitHub [Releases](https:
 ## Getting Started
 
 Click a Canvas Text card or a File card pointing to a `.md` file to open the side editor automatically. More usage and examples can be found in this README and the release notes.
+
+## Settings
+
+- **Default panel width**
+  - Initial width of the side panel (in pixels). Drag the panel edge to resize; the width is remembered.
+- **Preview debounce (ms)**
+  - Delay before updating the preview on edits. Increase for very large notes.
+- **Read only**
+  - When enabled, the side panel shows only the Preview pane. The editor and the preview toggle are hidden.
+- **Editor font size (px)**
+  - Explicit font size for the side editor. Leave unset to follow your theme when the panel first opens.
+- **Preview font size (px)**
+  - Explicit font size for the preview pane. Leave unset to follow your theme when the panel first opens.
 
 ## Compatibility
 - Requires Obsidian `minAppVersion >= 1.1.0`.
