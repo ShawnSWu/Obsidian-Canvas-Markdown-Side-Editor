@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { Plugin, TFile, WorkspaceLeaf } from 'obsidian';
+import { Plugin, TFile, WorkspaceLeaf, addIcon, setIcon } from 'obsidian';
 import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS } from './settings';
 import type { CanvasNode, CanvasData } from './types';
 import { iconOneCol, iconTwoCols } from './ui/icons';
@@ -70,6 +70,12 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
     // Start with preview visible by default. Collapsed state is session-only.
     this.previewCollapsed = false;
+
+    // Register custom icons for toggle button
+    try {
+      addIcon('cmside-two-cols', iconTwoCols);
+      addIcon('cmside-one-col', iconOneCol);
+    } catch {}
 
     // Styles are now provided by styles.css bundled with the plugin
     // Track canvas changes
@@ -498,7 +504,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
     try {
       const pos = getComputedStyle(container).position;
       if (!pos || pos === 'static') {
-        container.style.position = 'relative';
+        container.classList.add('cmside-container-patched');
         this.containerPosPatched = true;
       } else {
         this.containerPosPatched = false;
@@ -522,7 +528,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
       this.previewHelper.setContainer(this.previewRootEl!);
       // Toggle wiring and icon
       const setToggleIcon = (collapsed: boolean) => {
-        refs.toggleBtn.innerHTML = collapsed ? iconTwoCols : iconOneCol;
+        setIcon(refs.toggleBtn, collapsed ? 'cmside-two-cols' : 'cmside-one-col');
         refs.toggleBtn.setAttribute('aria-label', collapsed ? 'Show Preview' : 'Hide Preview');
         refs.toggleBtn.setAttribute('title', collapsed ? 'Show Preview' : 'Hide Preview');
       };
@@ -591,12 +597,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
         this.cmScrollHandler = () => { this.syncPreviewScroll(); };
         const v = this.cmView as EditorView;
         v.scrollDOM.addEventListener('scroll', this.cmScrollHandler, { passive: true });
-        // Ensure scroller is scrollable and sized
-        try {
-          v.scrollDOM.style.overflow = 'auto';
-          v.scrollDOM.style.height = '100%';
-          (v.scrollDOM.style as any).overscrollBehavior = 'contain';
-        } catch {}
       }
     }
 
@@ -650,9 +650,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
       this.panelEl.remove();
       this.panelEl = null;
     }
-    // Restore container position if we patched it
+    // Restore container position class if we patched it
     if (this.containerElRef && this.containerPosPatched) {
-      try { this.containerElRef.style.position = ''; } catch {}
+      try { this.containerElRef.classList.remove('cmside-container-patched'); } catch {}
     }
     this.containerElRef = null;
     this.containerPosPatched = false;
@@ -687,17 +687,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
     this.previewHelper?.syncScrollFromEditor(this.cmView);
   }
 
-  private syncPreviewPadding() {
-    if (!this.cmView || !this.previewRootEl) return;
-    try {
-      const s = getComputedStyle((this.cmView as EditorView).scrollDOM);
-      const pt = s.paddingTop, pr = s.paddingRight, pb = s.paddingBottom, pl = s.paddingLeft;
-      this.previewRootEl.style.paddingTop = pt;
-      this.previewRootEl.style.paddingRight = pr;
-      this.previewRootEl.style.paddingBottom = pb;
-      this.previewRootEl.style.paddingLeft = pl;
-    } catch {}
-  }
+  // Removed syncPreviewPadding(): preview now uses CSS variables for padding
 
   private alignPreviewToCaret() {
     if (!this.cmView || !this.previewRootEl) return;
@@ -734,8 +724,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
       if (!fromRect || !toRect) return;
       const top = Math.round(fromRect.top - scrollRect.top);
       const height = Math.max(1, Math.round((toRect.bottom - fromRect.top) || (fromRect.bottom - fromRect.top)));
-      this.activeMaskEl.style.top = `${top}px`;
-      this.activeMaskEl.style.height = `${height}px`;
+      this.activeMaskEl.style.setProperty('--cmside-active-mask-top', `${top}px`);
+      this.activeMaskEl.style.setProperty('--cmside-active-mask-height', `${height}px`);
     } catch {}
   }
 

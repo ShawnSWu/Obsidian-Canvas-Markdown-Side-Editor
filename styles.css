@@ -30,6 +30,9 @@ If your plugin does not need CSS, delete this file.
 }
 .canvas-md-side-editor-panel.open { transform: translateX(0); }
 
+/* Container patch class used instead of setting inline position in JS */
+.cmside-container-patched { position: relative; }
+
 /* Toolbar */
 .canvas-md-side-editor-panel .cmside-toolbar {
   display: flex;
@@ -136,6 +139,9 @@ If your plugin does not need CSS, delete this file.
   overflow: auto;
   min-height: 0;
   height: 100%;
+  /* Match editor scroller padding for alignment */
+  padding: var(--cmside-editor-padding-top) var(--cmside-editor-padding-x) var(--cmside-editor-padding-bottom);
+  box-sizing: border-box;
 }
 .canvas-md-side-editor-panel .cmside-preview-root.markdown-reading-view,
 .canvas-md-side-editor-panel .cmside-preview-root.markdown-preview-view { height: 100%; min-height: 0; }
@@ -149,3 +155,13 @@ If your plugin does not need CSS, delete this file.
 }
 .canvas-md-side-editor-panel .cmside-divider:hover { background: var(--interactive-accent); opacity: 0.85; }
 .canvas-md-side-editor-panel.resizing, .canvas-md-side-editor-panel.resizing * { user-select: none; cursor: col-resize; }
+
+/* Optional active line mask (if used) driven by CSS variables set from JS */
+.canvas-md-side-editor-panel .cmside-active-line-mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--cmside-active-mask-top, -9999px);
+  height: var(--cmside-active-mask-height, 0);
+  pointer-events: none;
+}

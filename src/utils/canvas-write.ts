@@ -1,4 +1,5 @@
-import type { App, TFile } from 'obsidian';
+import type { App } from 'obsidian';
+import { TFile } from 'obsidian';
 import type { CanvasData, CanvasNode } from '../types';
 
 export async function writeNodeContent(
@@ -62,5 +63,5 @@ export async function writeNodeContent(
 
 function resolveVaultFile(app: App, path: string) {
   const file = app.vault.getAbstractFileByPath(path);
-  return file as TFile | null;
+  return file instanceof TFile ? file : null;
 }
