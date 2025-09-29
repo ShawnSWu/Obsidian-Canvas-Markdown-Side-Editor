@@ -42,8 +42,9 @@ export async function writeNodeContent(
   } catch {}
 
   // Fallback: write to file JSON
-  const file: TFile | undefined = (view as any)?.file ?? view?.file;
-  if (!file) return;
+  const maybeFile: unknown = (view as any)?.file ?? (view as any)?.viewState?.file ?? view?.file;
+  if (!(maybeFile instanceof TFile)) return;
+  const file: TFile = maybeFile;
   try {
     const raw = await app.vault.read(file);
     const data = JSON.parse(raw) as CanvasData;

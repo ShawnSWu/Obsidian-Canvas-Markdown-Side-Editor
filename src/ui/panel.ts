@@ -45,7 +45,7 @@ export class PanelController {
     try {
       const pos = getComputedStyle(this.container).position;
       if (!pos || pos === 'static') {
-        this.container.style.position = 'relative';
+        this.container.classList.add('cmside-container-patched');
         this.containerPosPatched = true;
       }
     } catch {}
@@ -54,7 +54,10 @@ export class PanelController {
     // Apply default width from settings
     try {
       const w = this.getSettings()?.defaultPanelWidth;
-      if (typeof w === 'number' && w > 0) panel.style.width = `${Math.round(w)}px`;
+      if (typeof w === 'number' && w > 0) {
+        panel.classList.add('cmside-has-custom-width');
+        panel.style.setProperty('--cmside-panel-width', `${Math.round(w)}px`);
+      }
     } catch {}
 
     const toolbar = panel.createDiv({ cls: 'cmside-toolbar' });
@@ -119,11 +122,13 @@ export class PanelController {
         if (changed) {
           try { this.persistSettings(s); } catch {}
         }
-        // Apply sizes
-        if (s.editorFontSize != null && s.editorFontSize > 0) editorRoot.style.fontSize = `${Math.round(s.editorFontSize)}px`;
-        else editorRoot.style.fontSize = '';
-        if (s.previewFontSize != null && s.previewFontSize > 0) previewRoot.style.fontSize = `${Math.round(s.previewFontSize)}px`;
-        else previewRoot.style.fontSize = '';
+        // Apply sizes via CSS variables on the panel element
+        if (this.panelEl) {
+          if (s.editorFontSize != null && s.editorFontSize > 0) this.panelEl.style.setProperty('--cmside-editor-font-size', `${Math.round(s.editorFontSize)}px`);
+          else this.panelEl.style.removeProperty('--cmside-editor-font-size');
+          if (s.previewFontSize != null && s.previewFontSize > 0) this.panelEl.style.setProperty('--cmside-preview-font-size', `${Math.round(s.previewFontSize)}px`);
+          else this.panelEl.style.removeProperty('--cmside-preview-font-size');
+        }
       }
     } catch {}
 
@@ -179,35 +184,19 @@ export class PanelController {
 
   private applyCollapsedLayout() {
     try {
-      if (!this.panelEl) return;
-      // When preview is collapsed, make editor take full width, but remember previous flex
-      if (this.previewCollapsed) {
-        if (this.editorPaneEl) {
-          if (this.editorFlexBeforeCollapse == null) {
-            this.editorFlexBeforeCollapse = this.editorPaneEl.style.flex || '';
-          }
-          this.editorPaneEl.style.flex = '1 1 auto';
-        }
-      } else {
-        // Restore the editor width behavior after expanding preview
-        if (this.editorPaneEl) {
-          this.editorPaneEl.style.flex = this.editorFlexBeforeCollapse ?? '';
-        }
-        this.editorFlexBeforeCollapse = null;
-      }
+      // Layout is driven by CSS classes in styles.css (e.g., .preview-collapsed)
+      // No inline style manipulation needed here.
     } catch {}
   }
 
   applyFontSizes() {
     try {
       const s = this.getSettings();
-      if (this.editorRootEl) {
-        if (s?.editorFontSize != null && s.editorFontSize > 0) this.editorRootEl.style.fontSize = `${Math.round(s.editorFontSize)}px`;
-        else this.editorRootEl.style.fontSize = '';
-      }
-      if (this.previewRootEl) {
-        if (s?.previewFontSize != null && s.previewFontSize > 0) this.previewRootEl.style.fontSize = `${Math.round(s.previewFontSize)}px`;
-        else this.previewRootEl.style.fontSize = '';
+      if (this.panelEl) {
+        if (s?.editorFontSize != null && s.editorFontSize > 0) this.panelEl.style.setProperty('--cmside-editor-font-size', `${Math.round(s.editorFontSize)}px`);
+        else this.panelEl.style.removeProperty('--cmside-editor-font-size');
+        if (s?.previewFontSize != null && s.previewFontSize > 0) this.panelEl.style.setProperty('--cmside-preview-font-size', `${Math.round(s.previewFontSize)}px`);
+        else this.panelEl.style.removeProperty('--cmside-preview-font-size');
       }
     } catch {}
   }
@@ -227,7 +216,8 @@ export class PanelController {
       const onMove = (mv: PointerEvent) => {
         const delta = mv.clientX - startX; // dragging right -> delta>0 -> width decreases
         const newW = Math.min(maxWidth, Math.max(minWidth, startWidth - delta));
-        panel.style.width = `${Math.round(newW)}px`;
+        panel.classList.add('cmside-has-custom-width');
+        panel.style.setProperty('--cmside-panel-width', `${Math.round(newW)}px`);
       };
       const onUp = () => {
         window.removeEventListener('pointermove', onMove);
@@ -237,7 +227,12 @@ export class PanelController {
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp, { once: true });
     };
-    const onPanelResizerDblClick = () => { try { panel.style.width = ''; } catch {} };
+    const onPanelResizerDblClick = () => {
+      try {
+        panel.style.removeProperty('--cmside-panel-width');
+        panel.classList.remove('cmside-has-custom-width');
+      } catch {}
+    };
 
     this.panelResizerEl.addEventListener('pointerdown', onPanelResizerPointerDown);
     this.panelResizerEl.addEventListener('dblclick', onPanelResizerDblClick);
@@ -259,9 +254,9 @@ export class PanelController {
       const onMove = (mv: PointerEvent) => {
         const delta = mv.clientX - startX;
         const newW = Math.min(maxWidth, Math.max(minWidth, editorRect.width + delta));
-        // Lock editor width; preview will flex remaining
-        editorPane.style.flex = `0 0 ${newW}px`;
-        previewPane.style.flex = '1 1 auto';
+        // Lock editor width via CSS variable; preview will flex remaining via class-based CSS
+        panel.classList.add('cmside-editor-fixed');
+        panel.style.setProperty('--cmside-editor-width', `${Math.round(newW)}px`);
       };
       const onUp = async () => {
         window.removeEventListener('pointermove', onMove);
@@ -310,7 +305,7 @@ export class PanelController {
       this.panelEl = null;
     }
     if (this.containerPosPatched) {
-      try { this.container.style.position = ''; } catch {}
+      try { this.container.classList.remove('cmside-container-patched'); } catch {}
       this.containerPosPatched = false;
     }
     this.editorRootEl = null;

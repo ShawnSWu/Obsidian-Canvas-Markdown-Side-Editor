@@ -30,13 +30,11 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private currentCanvasFile: TFile | null = null;
   private currentNode: CanvasNode | null = null;
   private detachHandlers: Array<() => void> = [];
-  private styleEl: HTMLStyleElement | null = null;
   private pendingNodeId: string | null = null;
   private previewRootEl: HTMLElement | null = null;
   private previewTimer: number | null = null;
   private currentSourcePath: string = '';
   private cmScrollHandler: ((e: Event) => void) | null = null;
-  private activeMaskEl: HTMLElement | null = null;
   private onResizeHandler: (() => void) | null = null;
   private containerElRef: HTMLElement | null = null;
   private containerPosPatched: boolean = false;
@@ -187,10 +185,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
   onunload() {
     this.teardownPanel();
     this.detachFromCanvas();
-    if (this.styleEl) {
-      this.styleEl.remove();
-      this.styleEl = null;
-    }
   }
 
   private resolveVaultFile(path: string): TFile | null {
@@ -658,7 +652,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
     this.containerPosPatched = false;
     this.editorRootEl = null;
     this.previewRootEl = null;
-    this.activeMaskEl = null;
     this.onResizeHandler = null;
     if (this.previewTimer) {
       window.clearTimeout(this.previewTimer);
@@ -712,25 +705,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
     }
   }
 
-  private updateActiveLineMask() {
-    if (!this.cmView || !this.activeMaskEl) return;
-    try {
-      const cm = this.cmView as EditorView;
-      const pos = cm.state.selection.main.head;
-      const line = cm.state.doc.lineAt(pos);
-      const fromRect = cm.coordsAtPos(line.from);
-      const toRect = cm.coordsAtPos(line.to);
-      const scrollRect = cm.scrollDOM.getBoundingClientRect();
-      if (!fromRect || !toRect) return;
-      const top = Math.round(fromRect.top - scrollRect.top);
-      const height = Math.max(1, Math.round((toRect.bottom - fromRect.top) || (fromRect.bottom - fromRect.top)));
-      this.activeMaskEl.style.setProperty('--cmside-active-mask-top', `${top}px`);
-      this.activeMaskEl.style.setProperty('--cmside-active-mask-height', `${height}px`);
-    } catch {}
-  }
+  
 
 }
-
-// Settings tab moved to ./ui/setting-tab and imported above
 
 export default CanvasMdSideEditorPlugin;

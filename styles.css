@@ -14,6 +14,7 @@ If your plugin does not need CSS, delete this file.
   right: 0;
   height: 100%;
   min-height: 0;
+  /* Default width; can be overridden via --cmside-panel-width when class is present */
   width: min(48%, 640px);
   background: var(--background-primary);
   border-left: 1px solid var(--background-modifier-border);
@@ -29,6 +30,9 @@ If your plugin does not need CSS, delete this file.
   --cmside-editor-padding-bottom: 16px;
 }
 .canvas-md-side-editor-panel.open { transform: translateX(0); }
+
+/* When JS sets a custom panel width via CSS variable */
+.canvas-md-side-editor-panel.cmside-has-custom-width { width: var(--cmside-panel-width, min(48%, 640px)); }
 
 /* Container patch class used instead of setting inline position in JS */
 .cmside-container-patched { position: relative; }
@@ -125,6 +129,7 @@ If your plugin does not need CSS, delete this file.
   min-height: 0;
   background: var(--background-primary);
   border-right: 1px solid var(--background-modifier-border);
+  font-size: var(--cmside-editor-font-size, inherit);
 }
 .canvas-md-side-editor-panel .cmside-editor-root .cm-editor { height: 100%; }
 .canvas-md-side-editor-panel .cmside-editor-root .cm-scroller {
@@ -142,6 +147,7 @@ If your plugin does not need CSS, delete this file.
   /* Match editor scroller padding for alignment */
   padding: var(--cmside-editor-padding-top) var(--cmside-editor-padding-x) var(--cmside-editor-padding-bottom);
   box-sizing: border-box;
+  font-size: var(--cmside-preview-font-size, inherit);
 }
 .canvas-md-side-editor-panel .cmside-preview-root.markdown-reading-view,
 .canvas-md-side-editor-panel .cmside-preview-root.markdown-preview-view { height: 100%; min-height: 0; }
@@ -155,6 +161,10 @@ If your plugin does not need CSS, delete this file.
 }
 .canvas-md-side-editor-panel .cmside-divider:hover { background: var(--interactive-accent); opacity: 0.85; }
 .canvas-md-side-editor-panel.resizing, .canvas-md-side-editor-panel.resizing * { user-select: none; cursor: col-resize; }
+
+/* When the editor width is locked via divider drag, use a CSS variable */
+.canvas-md-side-editor-panel.cmside-editor-fixed .cmside-pane-editor { flex: 0 0 var(--cmside-editor-width, 320px); }
+.canvas-md-side-editor-panel.cmside-editor-fixed .cmside-pane-preview { flex: 1 1 auto; }
 
 /* Optional active line mask (if used) driven by CSS variables set from JS */
 .canvas-md-side-editor-panel .cmside-active-line-mask {
