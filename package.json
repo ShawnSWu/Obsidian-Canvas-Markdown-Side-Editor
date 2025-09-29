@@ -1,6 +1,6 @@
 {
 	"name": "canvas-markdown-side-editor",
-	"version": "1.2.2",
+	"version": "1.2.3",
 	"description": "Open a Canvas card's linked Markdown file in a right-side editor pane with one click.",
 	"main": "main.js",
 	"scripts": {
