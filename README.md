@@ -4,6 +4,8 @@ If you’re a Canvas enthusiast like me, you won’t want to miss this plugin.
 It allows you to open a right-side Markdown editor directly from the **“Big picture”** 🪐 view of your Canvas, so you can ✍️ edit without zooming in.  
 With ⚡ live preview and 💾 auto-save, you can format while writing, move smoothly between cards, and keep your thoughts flowing without interruption.
 
+<img width="1000" height="995" alt="image" src="https://github.com/user-attachments/assets/529bf519-1e51-463e-bad9-13d65fe83440" />
+
 Edit Canvas Markdown cards from a right-side editor with live preview and auto-save.  
 Click a Canvas card and start typing – as fast and natural as editing a normal note.
 
@@ -28,13 +30,11 @@ Click a Canvas card and start typing – as fast and natural as editing a normal
 - **👀 Live preview**  
   - Built-in MarkdownRenderer preview styled by your Obsidian theme.  
   - 🔄 Toggle preview on/off and ↔️ resize the panel by dragging.
-![callapse](https://github.com/user-attachments/assets/31ad47e6-669c-4c2c-87d9-4642dab8317b)
 
 - **📖 Read-only mode**  
   - Show only the Preview pane with the editor hidden.  
   - Useful when you want a clean reading panel.  
   - ⚙️ Enable in *Settings → Community Plugins → Canvas MD Side Editor → Read only*.
-![readonly](https://github.com/user-attachments/assets/19f07d55-6582-4595-8ba0-8f761502f0ee)
 
 - **🛡️ Robust Canvas support**
 
