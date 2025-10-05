@@ -1,10 +1,10 @@
 import type { App } from 'obsidian';
 import { TFile } from 'obsidian';
-import type { CanvasData, CanvasNode } from '../types';
+import type { CanvasData, CanvasNode, CanvasLikeView, CanvasLike } from '../types';
 
 export async function writeNodeContent(
   app: App,
-  view: any,
+  view: CanvasLikeView,
   currentNode: CanvasNode | null,
   nodeId: string,
   text: string,
@@ -28,21 +28,23 @@ export async function writeNodeContent(
   }
   // Try in-memory canvas API first if present
   try {
-    const canvas = (view as any)?.canvas;
+    const canvas: CanvasLike | undefined = view?.canvas as CanvasLike | undefined;
     if (canvas?.updateNode) {
       canvas.updateNode(nodeId, { text });
-      if (canvas?.requestSave) canvas.requestSave();
+      canvas.requestSave?.();
       return;
     }
     if (canvas?.setNodeText) {
       canvas.setNodeText(nodeId, text);
-      if (canvas?.requestSave) canvas.requestSave();
+      canvas.requestSave?.();
       return;
     }
   } catch {}
 
   // Fallback: write to file JSON
-  const maybeFile: unknown = (view as any)?.file ?? (view as any)?.viewState?.file ?? view?.file;
+  const maybeFile: unknown = (view as unknown as { file?: TFile; viewState?: { file?: TFile } })?.file
+    ?? (view as unknown as { viewState?: { file?: TFile } })?.viewState?.file
+    ?? view?.file;
   if (!(maybeFile instanceof TFile)) return;
   const file: TFile = maybeFile;
   try {
@@ -53,8 +55,8 @@ export async function writeNodeContent(
       data.nodes[idx].text = text;
       await app.vault.modify(file, JSON.stringify(data, null, 2));
       try {
-        const canvas = (view as any)?.canvas;
-        if (canvas?.requestSave) canvas.requestSave();
+        const canvas: CanvasLike | undefined = view?.canvas as CanvasLike | undefined;
+        canvas?.requestSave?.();
       } catch {}
     }
   } catch (e) {

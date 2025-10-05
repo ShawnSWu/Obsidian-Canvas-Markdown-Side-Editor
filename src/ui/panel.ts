@@ -212,7 +212,7 @@ export class PanelController {
       const minWidth = 300; // px (align with preset classes)
       const maxWidth = Math.max(minWidth, Math.min(containerRect.width - 120, containerRect.width));
       panel.classList.add('resizing-panel');
-      try { (ev.target as Element)?.setPointerCapture?.((ev as any).pointerId); } catch {}
+      try { (ev.target as Element)?.setPointerCapture?.(ev.pointerId); } catch {}
 
       const onMove = (mv: PointerEvent) => {
         const delta = mv.clientX - startX; // dragging right -> delta>0 -> width decreases
@@ -302,10 +302,10 @@ export class PanelController {
     panel.addEventListener('touchmove', stopTouchMoveBubble, { capture: true, passive: true } as AddEventListenerOptions);
     panel.addEventListener('touchmove', stopTouchMoveBubble, { capture: false, passive: true } as AddEventListenerOptions);
 
-    this.detachFns.push(() => panel.removeEventListener('wheel', stopWheelBubble, { capture: true } as any));
-    this.detachFns.push(() => panel.removeEventListener('wheel', stopWheelBubble, { capture: false } as any));
-    this.detachFns.push(() => panel.removeEventListener('touchmove', stopTouchMoveBubble, { capture: true } as any));
-    this.detachFns.push(() => panel.removeEventListener('touchmove', stopTouchMoveBubble, { capture: false } as any));
+    this.detachFns.push(() => panel.removeEventListener('wheel', stopWheelBubble, true));
+    this.detachFns.push(() => panel.removeEventListener('wheel', stopWheelBubble, false));
+    this.detachFns.push(() => panel.removeEventListener('touchmove', stopTouchMoveBubble, true));
+    this.detachFns.push(() => panel.removeEventListener('touchmove', stopTouchMoveBubble, false));
   }
 
   // Helpers: map numeric values to preset classes and apply font-size classes

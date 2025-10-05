@@ -1,12 +1,20 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type { CanvasMdSideEditorSettings } from '../settings';
 
-export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
-  // Avoid circular type dependency on the plugin class by using 'any'
-  plugin: any;
+// Minimal plugin surface used by this settings tab
+interface CanvasMdSideEditorPluginLike {
+  settings: CanvasMdSideEditorSettings;
+  saveData(data: unknown): Promise<void>;
+  setReadOnly?(v: boolean): void;
+  applyFontSizes?(): void;
+}
 
-  constructor(app: App, plugin: any) {
-    super(app, plugin);
+export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
+  plugin: CanvasMdSideEditorPluginLike;
+
+  constructor(app: App, plugin: CanvasMdSideEditorPluginLike) {
+    // cast only to satisfy PluginSettingTab's base constructor typing; avoid 'any'
+    super(app, plugin as unknown as import('obsidian').Plugin);
     this.plugin = plugin;
   }
 
@@ -25,7 +33,7 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
           const n = Number(v);
           if (isFinite(n) && n > 240) {
             this.plugin.settings.defaultPanelWidth = Math.round(n);
-            await this.plugin.saveData(this.plugin.settings as CanvasMdSideEditorSettings);
+            await this.plugin.saveData(this.plugin.settings);
           }
         });
       });
@@ -52,8 +60,8 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
         tg.setValue(!!this.plugin.settings.readOnly);
         tg.onChange(async (val) => {
           this.plugin.settings.readOnly = !!val;
-          await this.plugin.saveData(this.plugin.settings as CanvasMdSideEditorSettings);
-          try { this.plugin.panelController?.setReadOnly?.(!!val); } catch {}
+          await this.plugin.saveData(this.plugin.settings);
+          this.plugin.setReadOnly?.(!!val);
         });
       });
 
@@ -70,8 +78,8 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
           const n = Number(v);
           if (isFinite(n) && n >= 8) {
             this.plugin.settings.editorFontSize = Math.round(n);
-            await this.plugin.saveData(this.plugin.settings as CanvasMdSideEditorSettings);
-            try { this.plugin.panelController?.applyFontSizes?.(); } catch {}
+            await this.plugin.saveData(this.plugin.settings);
+            this.plugin.applyFontSizes?.();
           }
         });
       });
@@ -87,8 +95,8 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
           const n = Number(v);
           if (isFinite(n) && n >= 8) {
             this.plugin.settings.previewFontSize = Math.round(n);
-            await this.plugin.saveData(this.plugin.settings as CanvasMdSideEditorSettings);
-            try { this.plugin.panelController?.applyFontSizes?.(); } catch {}
+            await this.plugin.saveData(this.plugin.settings);
+            this.plugin.applyFontSizes?.();
           }
         });
       });

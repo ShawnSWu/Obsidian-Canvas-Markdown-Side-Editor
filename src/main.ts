@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { Plugin, TFile, WorkspaceLeaf, addIcon, setIcon } from 'obsidian';
 import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS } from './settings';
-import type { CanvasNode, CanvasData } from './types';
+import type { CanvasNode, CanvasData, CanvasLikeView, CanvasLike } from './types';
 import { iconOneCol, iconTwoCols } from './ui/icons';
 import { CanvasMdSideEditorSettingTab } from './ui/setting-tab';
 import { findNodeIdAtPoint } from './utils/canvas';
@@ -47,8 +47,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
   public settings!: CanvasMdSideEditorSettings;
 
   // Zoom-to-selection integration
-  private canvasPatchedRef: any | null = null;
-  private originalZoomToSelection: ((...args: any[]) => any) | null = null;
+  private canvasPatchedRef: CanvasLike | null = null;
+  private originalZoomToSelection: ((...args: unknown[]) => unknown) | null = null;
   private zoomingToSelection: boolean = false;
 
   // Single-click detection state
@@ -68,7 +68,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
       this.settings = { ...DEFAULT_SETTINGS };
     }
 
-    this.addSettingTab(new CanvasMdSideEditorSettingTab((this as any).app, this));
+    this.addSettingTab(new CanvasMdSideEditorSettingTab(this.app, this));
 
     // Start with preview visible by default. Collapsed state is session-only.
     this.previewCollapsed = false;
@@ -102,15 +102,17 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private async handlePasteImages(files: File[], view: EditorView): Promise<void> {
     try {
       if (!files || files.length === 0) return;
-      const vault: any = (this as any).app?.vault;
-      const metadata: any = (this as any).app?.metadataCache;
+      const vault = this.app.vault;
       const now = new Date();
 
       const sourcePath = this.currentSourcePath || '';
       const sourceDir = sourcePath.includes('/') ? sourcePath.substring(0, sourcePath.lastIndexOf('/')) : '';
 
       const getCfg = (k: string) => {
-        try { return vault?.getConfig?.(k); } catch { return undefined; }
+        try {
+          const v = (this.app as unknown as { vault: { getConfig?: (k: string) => unknown } }).vault;
+          return v.getConfig?.(k);
+        } catch { return undefined; }
       };
       const attachSetting = getCfg('attachmentFolderPath');
       const useMdLinks = !!getCfg('useMarkdownLinks');
@@ -196,21 +198,25 @@ class CanvasMdSideEditorPlugin extends Plugin {
     return file instanceof TFile ? file : null;
   }
 
-  private getActiveCanvasView(): any | null {
+  private getActiveCanvasView(): CanvasLikeView | null {
     const leaf: WorkspaceLeaf | null = this.app.workspace.activeLeaf ?? null;
     if (!leaf) return null;
-    const view: any = leaf.view as any;
-    if (view?.getViewType && view.getViewType() === 'canvas') return view;
+    const vUnknown = leaf.view as unknown;
+    const getType = (vUnknown as { getViewType?: () => string }).getViewType?.();
+    if (getType === 'canvas') {
+      const v = vUnknown as CanvasLikeView;
+      return v;
+    }
     return null;
   }
 
   
 
-  private attachToCanvas(view: any) {
+  private attachToCanvas(view: CanvasLikeView) {
     this.detachFromCanvas();
     const container: HTMLElement | undefined = view?.containerEl;
     if (!container) return;
-    const contentEl: HTMLElement | undefined = (view as any)?.contentEl;
+    const contentEl: HTMLElement | undefined = view?.contentEl;
     const innerEl: HTMLElement | null = container.querySelector(
       '.canvas-container, .canvas-wrapper, .canvas-viewport'
     );
@@ -223,7 +229,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
     }
     try { console.debug?.('CanvasMdSideEditor: potential targets', targets.map(t => ({ tag: t.tagName, cls: (t as HTMLElement).className }))); } catch {}
     try {
-      const canvasObj = (view as any)?.canvas;
+      const canvasObj: CanvasLike | undefined = view?.canvas as CanvasLike | undefined;
       if (canvasObj) {
         const proto = Object.getPrototypeOf(canvasObj);
         const keys = Object.keys(canvasObj);
@@ -231,11 +237,11 @@ class CanvasMdSideEditorPlugin extends Plugin {
         console.debug?.('CanvasMdSideEditor: canvas api keys', { keys, protoNames });
         // Patch zoomToSelection to close side editor and mark zooming state
         try {
-          const z = (canvasObj as any).zoomToSelection;
+          const z = canvasObj.zoomToSelection;
           if (typeof z === 'function' && this.canvasPatchedRef !== canvasObj) {
             this.originalZoomToSelection = z.bind(canvasObj);
             const plugin = this;
-            (canvasObj as any).zoomToSelection = async function(...args: any[]) {
+            canvasObj.zoomToSelection = async function(...args: unknown[]) {
               try { plugin.zoomingToSelection = true; } catch {}
               try {
                 if (plugin.panelEl) await plugin.saveAndClose(view);
@@ -251,7 +257,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
             this.detachHandlers.push(() => {
               try {
                 if (this.canvasPatchedRef === canvasObj && this.originalZoomToSelection) {
-                  (canvasObj as any).zoomToSelection = this.originalZoomToSelection;
+                  canvasObj.zoomToSelection = this.originalZoomToSelection;
                 }
               } catch {}
               this.canvasPatchedRef = null;
@@ -447,9 +453,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
     // Safety: if we were patched and not restored, restore now
     try {
       const view = this.getActiveCanvasView();
-      const canvasObj = (view as any)?.canvas;
+      const canvasObj: CanvasLike | undefined = view?.canvas as CanvasLike | undefined;
       if (canvasObj && this.canvasPatchedRef === canvasObj && this.originalZoomToSelection) {
-        (canvasObj as any).zoomToSelection = this.originalZoomToSelection;
+        canvasObj.zoomToSelection = this.originalZoomToSelection;
       }
     } catch {}
     this.canvasPatchedRef = null;
@@ -457,8 +463,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
     this.zoomingToSelection = false;
   }
 
-  private isOnCanvasView(view: any): boolean {
-    return !!view && view.getViewType && view.getViewType() === 'canvas';
+  private isOnCanvasView(view: unknown): boolean {
+    const getType = (view as { getViewType?: () => string })?.getViewType?.();
+    return getType === 'canvas';
   }
 
   private isCanvasInlineEditTarget(el: HTMLElement | null): boolean {
@@ -553,7 +560,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
     if (!this.panelEl || !this.editorRootEl) return;
     this.currentNodeId = node.id;
     this.currentNode = node;
-    const file: TFile | undefined = (view as any)?.file ?? view?.file;
+    const file: TFile | undefined = view?.file;
     this.currentCanvasFile = file ?? null;
     this.currentSourcePath =
       node.type === 'file' && typeof node.file === 'string'
@@ -629,6 +636,15 @@ class CanvasMdSideEditorPlugin extends Plugin {
     this.currentNodeId = null;
   }
 
+  // Public wrappers used by the settings tab to avoid touching private fields
+  public setReadOnly(v: boolean) {
+    try { this.panelController?.setReadOnly?.(!!v); } catch {}
+  }
+
+  public applyFontSizes() {
+    try { this.panelController?.applyFontSizes?.(); } catch {}
+  }
+
   private teardownPanel() {
     // Prefer controller cleanup if present
     if (this.panelController) {
@@ -636,7 +652,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
       this.panelController = null;
     }
     if (this.cmView && this.cmScrollHandler) {
-      try { (this.cmView as EditorView).scrollDOM.removeEventListener('scroll', this.cmScrollHandler as any); } catch {}
+      try { (this.cmView as EditorView).scrollDOM.removeEventListener('scroll', this.cmScrollHandler); } catch {}
     }
     if (this.cmView) {
       this.cmView.destroy();
@@ -732,8 +748,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
           const t = evt.target as HTMLElement | null;
           // Let CodeMirror handle clicks within content/lines normally
           if (t && (t.closest('.cm-content') || t.closest('.cm-line'))) return;
-          const pos = (this.cmView as EditorView).posAtCoords({ x: evt.clientX, y: evt.clientY } as any) as any;
-          const at = (pos == null) ? (this.cmView as EditorView).state.doc.length : (pos as number);
+          const pos = (this.cmView as EditorView).posAtCoords({ x: evt.clientX, y: evt.clientY });
+          const at = (pos == null) ? (this.cmView as EditorView).state.doc.length : pos;
           (this.cmView as EditorView).dispatch({ selection: { anchor: at } });
           (this.cmView as EditorView).focus();
           evt.preventDefault();

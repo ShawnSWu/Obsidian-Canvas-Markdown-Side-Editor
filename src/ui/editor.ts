@@ -1,4 +1,4 @@
-import { EditorState } from '@codemirror/state';
+import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { markdown } from '@codemirror/lang-markdown';
 
@@ -8,7 +8,7 @@ export function createEditor(
   onDocChange?: (view: EditorView) => void,
   onPasteImages?: (files: File[], view: EditorView) => void,
 ): EditorView {
-  const extensions: any[] = [markdown(), EditorView.lineWrapping];
+  const extensions: Extension[] = [markdown(), EditorView.lineWrapping];
   if (onDocChange) {
     extensions.push(
       EditorView.updateListener.of((vu) => {

@@ -1,6 +1,7 @@
 // Canvas DOM and geometry helpers
+import type { CanvasLikeView } from '../types';
 
-export function getViewportEl(view: any): HTMLElement | null {
+export function getViewportEl(view: CanvasLikeView): HTMLElement | null {
   const container: HTMLElement | undefined = view?.containerEl;
   if (!container) return null;
   const el = container.querySelector(
@@ -9,7 +10,7 @@ export function getViewportEl(view: any): HTMLElement | null {
   return el ?? container;
 }
 
-export function getTransformEl(view: any): HTMLElement | null {
+export function getTransformEl(view: CanvasLikeView): HTMLElement | null {
   const container: HTMLElement | undefined = view?.containerEl;
   if (!container) return null;
   const candidates: HTMLElement[] = [];
@@ -57,7 +58,7 @@ export function parseTransform(el: HTMLElement): { scale: number; tx: number; ty
   return { scale: 1, tx: 0, ty: 0 };
 }
 
-export function screenToCanvasPoint(view: any, clientX: number, clientY: number): { x: number; y: number } {
+export function screenToCanvasPoint(view: CanvasLikeView, clientX: number, clientY: number): { x: number; y: number } {
   const el = getTransformEl(view) ?? getViewportEl(view);
   if (!el) return { x: clientX, y: clientY };
   const rect = el.getBoundingClientRect();
