@@ -2,6 +2,9 @@ import type { App, TFile } from 'obsidian';
 import type { CanvasData, CanvasNode, CanvasLikeView, CanvasLike } from '../types';
 import { screenToCanvasPoint } from './canvas';
 
+// Narrowing helper to ensure values are finite numbers
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
 export async function readCanvasData(app: App, view: CanvasLikeView): Promise<CanvasData | null> {
   try {
     const canvas: CanvasLike | undefined = view?.canvas as CanvasLike | undefined;
@@ -55,10 +58,11 @@ export async function hitTestNodeAt(app: App, view: CanvasLikeView, clientX: num
       const h = typeof sizeObj?.h === 'number' ? sizeObj!.h as number
               : typeof sizeObj?.height === 'number' ? sizeObj!.height as number
               : (typeof sizeArr?.[1] === 'number' ? sizeArr![1] as number : undefined);
-      if ([px, py, w, h].every((v) => typeof v === 'number')) {
+      if (isNum(px) && isNum(py) && isNum(w) && isNum(h)) {
+        const _px = px, _py = py, _w = w, _h = h;
         return [
-          { left: px, top: py, width: w, height: h },
-          { left: px - w / 2, top: py - h / 2, width: w, height: h },
+          { left: _px, top: _py, width: _w, height: _h },
+          { left: _px - _w / 2, top: _py - _h / 2, width: _w, height: _h },
         ];
       }
     }
