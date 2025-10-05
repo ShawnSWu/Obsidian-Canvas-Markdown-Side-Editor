@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { Plugin, TFile, WorkspaceLeaf, addIcon, setIcon } from 'obsidian';
 import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS } from './settings';
-import type { CanvasNode, CanvasData } from './types';
+import type { CanvasNode, CanvasData, CanvasLikeView, CanvasLike } from './types';
 import { iconOneCol, iconTwoCols } from './ui/icons';
 import { CanvasMdSideEditorSettingTab } from './ui/setting-tab';
 import { findNodeIdAtPoint } from './utils/canvas';
@@ -36,6 +36,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private currentSourcePath: string = '';
   private cmScrollHandler: ((e: Event) => void) | null = null;
   private onResizeHandler: (() => void) | null = null;
+  // UX helpers for editor focusing on blank clicks
+  private editorClickHandler: ((e: MouseEvent) => void) | null = null;
+  private editorClickAttachedEl: HTMLElement | null = null;
   private containerElRef: HTMLElement | null = null;
   private containerPosPatched: boolean = false;
   private previewCollapsed: boolean = false;
@@ -44,8 +47,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
   public settings!: CanvasMdSideEditorSettings;
 
   // Zoom-to-selection integration
-  private canvasPatchedRef: any | null = null;
-  private originalZoomToSelection: ((...args: any[]) => any) | null = null;
+  private canvasPatchedRef: CanvasLike | null = null;
+  private originalZoomToSelection: ((...args: unknown[]) => unknown) | null = null;
   private zoomingToSelection: boolean = false;
 
   // Single-click detection state
@@ -64,7 +67,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
     } catch {
       this.settings = { ...DEFAULT_SETTINGS };
     }
-    this.addSettingTab(new CanvasMdSideEditorSettingTab((this as any).app, this));
+
+    this.addSettingTab(new CanvasMdSideEditorSettingTab(this.app, this));
 
     // Start with preview visible by default. Collapsed state is session-only.
     this.previewCollapsed = false;
@@ -98,15 +102,17 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private async handlePasteImages(files: File[], view: EditorView): Promise<void> {
     try {
       if (!files || files.length === 0) return;
-      const vault: any = (this as any).app?.vault;
-      const metadata: any = (this as any).app?.metadataCache;
+      const vault = this.app.vault;
       const now = new Date();
 
       const sourcePath = this.currentSourcePath || '';
       const sourceDir = sourcePath.includes('/') ? sourcePath.substring(0, sourcePath.lastIndexOf('/')) : '';
 
       const getCfg = (k: string) => {
-        try { return vault?.getConfig?.(k); } catch { return undefined; }
+        try {
+          const v = (this.app as unknown as { vault: { getConfig?: (k: string) => unknown } }).vault;
+          return v.getConfig?.(k);
+        } catch { return undefined; }
       };
       const attachSetting = getCfg('attachmentFolderPath');
       const useMdLinks = !!getCfg('useMarkdownLinks');
@@ -192,21 +198,25 @@ class CanvasMdSideEditorPlugin extends Plugin {
     return file instanceof TFile ? file : null;
   }
 
-  private getActiveCanvasView(): any | null {
+  private getActiveCanvasView(): CanvasLikeView | null {
     const leaf: WorkspaceLeaf | null = this.app.workspace.activeLeaf ?? null;
     if (!leaf) return null;
-    const view: any = leaf.view as any;
-    if (view?.getViewType && view.getViewType() === 'canvas') return view;
+    const vUnknown = leaf.view as unknown;
+    const getType = (vUnknown as { getViewType?: () => string }).getViewType?.();
+    if (getType === 'canvas') {
+      const v = vUnknown as CanvasLikeView;
+      return v;
+    }
     return null;
   }
 
   
 
-  private attachToCanvas(view: any) {
+  private attachToCanvas(view: CanvasLikeView) {
     this.detachFromCanvas();
     const container: HTMLElement | undefined = view?.containerEl;
     if (!container) return;
-    const contentEl: HTMLElement | undefined = (view as any)?.contentEl;
+    const contentEl: HTMLElement | undefined = view?.contentEl;
     const innerEl: HTMLElement | null = container.querySelector(
       '.canvas-container, .canvas-wrapper, .canvas-viewport'
     );
@@ -219,7 +229,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
     }
     try { console.debug?.('CanvasMdSideEditor: potential targets', targets.map(t => ({ tag: t.tagName, cls: (t as HTMLElement).className }))); } catch {}
     try {
-      const canvasObj = (view as any)?.canvas;
+      const canvasObj: CanvasLike | undefined = view?.canvas as CanvasLike | undefined;
       if (canvasObj) {
         const proto = Object.getPrototypeOf(canvasObj);
         const keys = Object.keys(canvasObj);
@@ -227,11 +237,11 @@ class CanvasMdSideEditorPlugin extends Plugin {
         console.debug?.('CanvasMdSideEditor: canvas api keys', { keys, protoNames });
         // Patch zoomToSelection to close side editor and mark zooming state
         try {
-          const z = (canvasObj as any).zoomToSelection;
+          const z = canvasObj.zoomToSelection;
           if (typeof z === 'function' && this.canvasPatchedRef !== canvasObj) {
             this.originalZoomToSelection = z.bind(canvasObj);
             const plugin = this;
-            (canvasObj as any).zoomToSelection = async function(...args: any[]) {
+            canvasObj.zoomToSelection = async function(...args: unknown[]) {
               try { plugin.zoomingToSelection = true; } catch {}
               try {
                 if (plugin.panelEl) await plugin.saveAndClose(view);
@@ -247,7 +257,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
             this.detachHandlers.push(() => {
               try {
                 if (this.canvasPatchedRef === canvasObj && this.originalZoomToSelection) {
-                  (canvasObj as any).zoomToSelection = this.originalZoomToSelection;
+                  canvasObj.zoomToSelection = this.originalZoomToSelection;
                 }
               } catch {}
               this.canvasPatchedRef = null;
@@ -342,22 +352,19 @@ class CanvasMdSideEditorPlugin extends Plugin {
       try { console.debug?.('CanvasMdSideEditor: pointerup qualify', { isPrimaryButton, dt, dx, dy, moved, isLongPress, qualifiesSingleClick }); } catch {}
 
       if (qualifiesSingleClick) {
-        // If we don't have a pending id yet, try elementsFromPoint or Canvas API
-        if (!this.pendingNodeId) {
-          const idByPoint = findNodeIdAtPoint(evt.clientX, evt.clientY);
-          if (idByPoint) this.pendingNodeId = idByPoint;
-          if (!this.pendingNodeId) {
-            const idByApi = await tryAPIsHit(view, evt.clientX, evt.clientY);
-            if (idByApi) this.pendingNodeId = idByApi;
-          }
-        }
-        try { console.debug?.('CanvasMdSideEditor: pointerup pendingNodeId', this.pendingNodeId); } catch {}
-        if (this.pendingNodeId) {
-          const node = await getNodeByIdUtil(this.app, view, this.pendingNodeId);
+        // Always resolve the clicked node id to avoid stale pendingNodeId
+        let clickId: string | null = findNodeIdAtPoint(evt.clientX, evt.clientY);
+        if (!clickId) clickId = await tryAPIsHit(view, evt.clientX, evt.clientY);
+        if (!clickId) clickId = await getSelId(view);
+        if (!clickId) clickId = this.pendingNodeId ?? null;
+
+        try { console.debug?.('CanvasMdSideEditor: pointerup resolved clickId', clickId, 'pending', this.pendingNodeId); } catch {}
+        if (clickId) {
+          const node = await getNodeByIdUtil(this.app, view, clickId);
           if (node) {
             const isMd = node.type === 'text' || (node.type === 'file' && typeof node.file === 'string' && node.file.toLowerCase().endsWith('.md'));
             if (isMd) {
-              if (this.panelEl && this.currentNodeId && this.currentNodeId !== this.pendingNodeId) {
+              if (this.panelEl && this.currentNodeId && this.currentNodeId !== clickId) {
                 await this.saveCurrentEdits(view);
               }
               await this.openEditorForNode(view, node);
@@ -446,9 +453,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
     // Safety: if we were patched and not restored, restore now
     try {
       const view = this.getActiveCanvasView();
-      const canvasObj = (view as any)?.canvas;
+      const canvasObj: CanvasLike | undefined = view?.canvas as CanvasLike | undefined;
       if (canvasObj && this.canvasPatchedRef === canvasObj && this.originalZoomToSelection) {
-        (canvasObj as any).zoomToSelection = this.originalZoomToSelection;
+        canvasObj.zoomToSelection = this.originalZoomToSelection;
       }
     } catch {}
     this.canvasPatchedRef = null;
@@ -456,8 +463,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
     this.zoomingToSelection = false;
   }
 
-  private isOnCanvasView(view: any): boolean {
-    return !!view && view.getViewType && view.getViewType() === 'canvas';
+  private isOnCanvasView(view: unknown): boolean {
+    const getType = (view as { getViewType?: () => string })?.getViewType?.();
+    return getType === 'canvas';
   }
 
   private isCanvasInlineEditTarget(el: HTMLElement | null): boolean {
@@ -552,7 +560,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
     if (!this.panelEl || !this.editorRootEl) return;
     this.currentNodeId = node.id;
     this.currentNode = node;
-    const file: TFile | undefined = (view as any)?.file ?? view?.file;
+    const file: TFile | undefined = view?.file;
     this.currentCanvasFile = file ?? null;
     this.currentSourcePath =
       node.type === 'file' && typeof node.file === 'string'
@@ -592,6 +600,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
         const v = this.cmView as EditorView;
         v.scrollDOM.addEventListener('scroll', this.cmScrollHandler, { passive: true });
       }
+      // Ensure clicking blank area focuses editor and places caret
+      this.setupEditorBlankClickHandler();
     }
 
     // Initial render
@@ -626,6 +636,15 @@ class CanvasMdSideEditorPlugin extends Plugin {
     this.currentNodeId = null;
   }
 
+  // Public wrappers used by the settings tab to avoid touching private fields
+  public setReadOnly(v: boolean) {
+    try { this.panelController?.setReadOnly?.(!!v); } catch {}
+  }
+
+  public applyFontSizes() {
+    try { this.panelController?.applyFontSizes?.(); } catch {}
+  }
+
   private teardownPanel() {
     // Prefer controller cleanup if present
     if (this.panelController) {
@@ -633,13 +652,21 @@ class CanvasMdSideEditorPlugin extends Plugin {
       this.panelController = null;
     }
     if (this.cmView && this.cmScrollHandler) {
-      try { (this.cmView as EditorView).scrollDOM.removeEventListener('scroll', this.cmScrollHandler as any); } catch {}
+      try { (this.cmView as EditorView).scrollDOM.removeEventListener('scroll', this.cmScrollHandler); } catch {}
     }
     if (this.cmView) {
       this.cmView.destroy();
       this.cmView = null;
     }
     this.cmScrollHandler = null;
+    // Detach editor blank-click handler if attached
+    try {
+      if (this.editorClickAttachedEl && this.editorClickHandler) {
+        this.editorClickAttachedEl.removeEventListener('mousedown', this.editorClickHandler);
+      }
+    } catch {}
+    this.editorClickAttachedEl = null;
+    this.editorClickHandler = null;
     if (this.panelEl) {
       this.panelEl.remove();
       this.panelEl = null;
@@ -702,6 +729,38 @@ class CanvasMdSideEditorPlugin extends Plugin {
     } catch {
       // fallback to simple sync
       this.syncPreviewScroll();
+    }
+  }
+
+  private setupEditorBlankClickHandler() {
+    if (!this.editorRootEl || !this.cmView || this.settings.readOnly) return;
+    const root = this.editorRootEl;
+    // If handler already attached to another element, detach first
+    if (this.editorClickAttachedEl && this.editorClickAttachedEl !== root && this.editorClickHandler) {
+      try { this.editorClickAttachedEl.removeEventListener('mousedown', this.editorClickHandler); } catch {}
+    }
+    // Define handler if not exists
+    if (!this.editorClickHandler) {
+      this.editorClickHandler = (evt: MouseEvent) => {
+        try {
+          if (!this.cmView) return;
+          if (evt.button !== 0) return; // left click only
+          const t = evt.target as HTMLElement | null;
+          // Let CodeMirror handle clicks within content/lines normally
+          if (t && (t.closest('.cm-content') || t.closest('.cm-line'))) return;
+          const pos = (this.cmView as EditorView).posAtCoords({ x: evt.clientX, y: evt.clientY });
+          const at = (pos == null) ? (this.cmView as EditorView).state.doc.length : pos;
+          (this.cmView as EditorView).dispatch({ selection: { anchor: at } });
+          (this.cmView as EditorView).focus();
+          evt.preventDefault();
+          evt.stopPropagation();
+        } catch {}
+      };
+    }
+    // Attach to current root if not already
+    if (this.editorClickAttachedEl !== root) {
+      root.addEventListener('mousedown', this.editorClickHandler!);
+      this.editorClickAttachedEl = root;
     }
   }
 

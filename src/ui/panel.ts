@@ -27,6 +27,11 @@ export class PanelController {
   private detachFns: Array<() => void> = [];
   private containerPosPatched = false;
   private editorFlexBeforeCollapse: string | null = null;
+  // Track currently applied preset classes so we can swap cleanly
+  private currentPanelWidthClass: string | null = null;
+  private currentEditorWidthClass: string | null = null;
+  private currentEditorFontClass: string | null = null;
+  private currentPreviewFontClass: string | null = null;
 
   constructor(
     container: HTMLElement,
@@ -56,7 +61,11 @@ export class PanelController {
       const w = this.getSettings()?.defaultPanelWidth;
       if (typeof w === 'number' && w > 0) {
         panel.classList.add('cmside-has-custom-width');
-        panel.style.setProperty('--cmside-panel-width', `${Math.round(w)}px`);
+        const cls = this.mapToPanelWidthClass(Math.round(w));
+        if (cls) {
+          panel.classList.add(cls);
+          this.currentPanelWidthClass = cls;
+        }
       }
     } catch {}
 
@@ -124,10 +133,7 @@ export class PanelController {
         }
         // Apply sizes via CSS variables on the panel element
         if (this.panelEl) {
-          if (s.editorFontSize != null && s.editorFontSize > 0) this.panelEl.style.setProperty('--cmside-editor-font-size', `${Math.round(s.editorFontSize)}px`);
-          else this.panelEl.style.removeProperty('--cmside-editor-font-size');
-          if (s.previewFontSize != null && s.previewFontSize > 0) this.panelEl.style.setProperty('--cmside-preview-font-size', `${Math.round(s.previewFontSize)}px`);
-          else this.panelEl.style.removeProperty('--cmside-preview-font-size');
+          this.applyFontSizeClassesFromSettings(s);
         }
       }
     } catch {}
@@ -192,12 +198,7 @@ export class PanelController {
   applyFontSizes() {
     try {
       const s = this.getSettings();
-      if (this.panelEl) {
-        if (s?.editorFontSize != null && s.editorFontSize > 0) this.panelEl.style.setProperty('--cmside-editor-font-size', `${Math.round(s.editorFontSize)}px`);
-        else this.panelEl.style.removeProperty('--cmside-editor-font-size');
-        if (s?.previewFontSize != null && s.previewFontSize > 0) this.panelEl.style.setProperty('--cmside-preview-font-size', `${Math.round(s.previewFontSize)}px`);
-        else this.panelEl.style.removeProperty('--cmside-preview-font-size');
-      }
+      if (this.panelEl && s) this.applyFontSizeClassesFromSettings(s);
     } catch {}
   }
 
@@ -208,16 +209,22 @@ export class PanelController {
       const startX = ev.clientX;
       const startWidth = panel.getBoundingClientRect().width;
       const containerRect = this.container.getBoundingClientRect();
-      const minWidth = 280; // px
+      const minWidth = 300; // px (align with preset classes)
       const maxWidth = Math.max(minWidth, Math.min(containerRect.width - 120, containerRect.width));
       panel.classList.add('resizing-panel');
-      try { (ev.target as Element)?.setPointerCapture?.((ev as any).pointerId); } catch {}
+      try { (ev.target as Element)?.setPointerCapture?.(ev.pointerId); } catch {}
 
       const onMove = (mv: PointerEvent) => {
         const delta = mv.clientX - startX; // dragging right -> delta>0 -> width decreases
         const newW = Math.min(maxWidth, Math.max(minWidth, startWidth - delta));
+        // Apply nearest preset class live while dragging
         panel.classList.add('cmside-has-custom-width');
-        panel.style.setProperty('--cmside-panel-width', `${Math.round(newW)}px`);
+        const cls = this.mapToPanelWidthClass(Math.round(newW));
+        if (cls && this.currentPanelWidthClass !== cls) {
+          if (this.currentPanelWidthClass) panel.classList.remove(this.currentPanelWidthClass);
+          panel.classList.add(cls);
+          this.currentPanelWidthClass = cls;
+        }
       };
       const onUp = () => {
         window.removeEventListener('pointermove', onMove);
@@ -229,8 +236,9 @@ export class PanelController {
     };
     const onPanelResizerDblClick = () => {
       try {
-        panel.style.removeProperty('--cmside-panel-width');
         panel.classList.remove('cmside-has-custom-width');
+        if (this.currentPanelWidthClass) panel.classList.remove(this.currentPanelWidthClass);
+        this.currentPanelWidthClass = null;
       } catch {}
     };
 
@@ -254,9 +262,14 @@ export class PanelController {
       const onMove = (mv: PointerEvent) => {
         const delta = mv.clientX - startX;
         const newW = Math.min(maxWidth, Math.max(minWidth, editorRect.width + delta));
-        // Lock editor width via CSS variable; preview will flex remaining via class-based CSS
+        // Lock editor width via preset class; preview flex is handled by CSS
         panel.classList.add('cmside-editor-fixed');
-        panel.style.setProperty('--cmside-editor-width', `${Math.round(newW)}px`);
+        const cls = this.mapToEditorWidthClass(Math.round(newW));
+        if (cls && this.currentEditorWidthClass !== cls) {
+          if (this.currentEditorWidthClass) panel.classList.remove(this.currentEditorWidthClass);
+          panel.classList.add(cls);
+          this.currentEditorWidthClass = cls;
+        }
       };
       const onUp = async () => {
         window.removeEventListener('pointermove', onMove);
@@ -289,10 +302,93 @@ export class PanelController {
     panel.addEventListener('touchmove', stopTouchMoveBubble, { capture: true, passive: true } as AddEventListenerOptions);
     panel.addEventListener('touchmove', stopTouchMoveBubble, { capture: false, passive: true } as AddEventListenerOptions);
 
-    this.detachFns.push(() => panel.removeEventListener('wheel', stopWheelBubble, { capture: true } as any));
-    this.detachFns.push(() => panel.removeEventListener('wheel', stopWheelBubble, { capture: false } as any));
-    this.detachFns.push(() => panel.removeEventListener('touchmove', stopTouchMoveBubble, { capture: true } as any));
-    this.detachFns.push(() => panel.removeEventListener('touchmove', stopTouchMoveBubble, { capture: false } as any));
+    this.detachFns.push(() => panel.removeEventListener('wheel', stopWheelBubble, true));
+    this.detachFns.push(() => panel.removeEventListener('wheel', stopWheelBubble, false));
+    this.detachFns.push(() => panel.removeEventListener('touchmove', stopTouchMoveBubble, true));
+    this.detachFns.push(() => panel.removeEventListener('touchmove', stopTouchMoveBubble, false));
+  }
+
+  // Helpers: map numeric values to preset classes and apply font-size classes
+  private mapToPanelWidthClass(px: number): string | null {
+    // Quantize to 300..800, step 20 -> class: cmside-width-w{px}
+    const q = this.quantize(px, 300, 800, 20);
+    return q ? `cmside-width-w${q}` : null;
+  }
+
+  private mapToEditorWidthClass(px: number): string | null {
+    // Quantize to 200..800, step 20 -> class: cmside-editor-w-{px}
+    const q = this.quantize(px, 200, 800, 20);
+    return q ? `cmside-editor-w-${q}` : null;
+  }
+
+  private mapToEditorFontClass(px: number): string | null {
+    const presets: Array<{ cls: string; px: number }> = [
+      { cls: 'cmside-editor-font-xs', px: 12 },
+      { cls: 'cmside-editor-font-sm', px: 13 },
+      { cls: 'cmside-editor-font-md', px: 14 },
+      { cls: 'cmside-editor-font-lg', px: 16 },
+      { cls: 'cmside-editor-font-xl', px: 18 },
+    ];
+    return this.pickNearestPreset(px, presets);
+  }
+
+  private mapToPreviewFontClass(px: number): string | null {
+    const presets: Array<{ cls: string; px: number }> = [
+      { cls: 'cmside-preview-font-xs', px: 12 },
+      { cls: 'cmside-preview-font-sm', px: 13 },
+      { cls: 'cmside-preview-font-md', px: 14 },
+      { cls: 'cmside-preview-font-lg', px: 16 },
+      { cls: 'cmside-preview-font-xl', px: 18 },
+    ];
+    return this.pickNearestPreset(px, presets);
+  }
+
+  private pickNearestPreset(px: number, presets: Array<{ cls: string; px: number }>): string | null {
+    if (!isFinite(px)) return null;
+    let best: { cls: string; px: number } | null = null;
+    let bestDiff = Infinity;
+    for (const p of presets) {
+      const d = Math.abs(px - p.px);
+      if (d < bestDiff) { best = p; bestDiff = d; }
+    }
+    return best?.cls ?? null;
+  }
+
+  private quantize(px: number, min: number, max: number, step: number): number | null {
+    if (!isFinite(px)) return null;
+    const clamped = Math.max(min, Math.min(max, px));
+    const q = Math.round((clamped - min) / step) * step + min;
+    return q;
+  }
+
+  private applyFontSizeClassesFromSettings(s: CanvasMdSideEditorSettings) {
+    if (!this.panelEl) return;
+    // Editor font
+    if (this.currentEditorFontClass) this.panelEl.classList.remove(this.currentEditorFontClass);
+    if (s.editorFontSize != null && s.editorFontSize > 0) {
+      const cls = this.mapToEditorFontClass(Math.round(s.editorFontSize));
+      if (cls) {
+        this.panelEl.classList.add(cls);
+        this.currentEditorFontClass = cls;
+      } else {
+        this.currentEditorFontClass = null;
+      }
+    } else {
+      this.currentEditorFontClass = null;
+    }
+    // Preview font
+    if (this.currentPreviewFontClass) this.panelEl.classList.remove(this.currentPreviewFontClass);
+    if (s.previewFontSize != null && s.previewFontSize > 0) {
+      const cls = this.mapToPreviewFontClass(Math.round(s.previewFontSize));
+      if (cls) {
+        this.panelEl.classList.add(cls);
+        this.currentPreviewFontClass = cls;
+      } else {
+        this.currentPreviewFontClass = null;
+      }
+    } else {
+      this.currentPreviewFontClass = null;
+    }
   }
 
   destroy() {
