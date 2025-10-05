@@ -164,6 +164,7 @@ If your plugin does not need CSS, delete this file.
   background: var(--background-primary);
   border-right: 1px solid var(--background-modifier-border);
   font-size: var(--cmside-editor-font-size, inherit);
+  cursor: text;
 }
 .canvas-md-side-editor-panel .cmside-editor-root .cm-editor { height: 100%; }
 .canvas-md-side-editor-panel .cmside-editor-root .cm-scroller {

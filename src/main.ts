@@ -36,6 +36,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private currentSourcePath: string = '';
   private cmScrollHandler: ((e: Event) => void) | null = null;
   private onResizeHandler: (() => void) | null = null;
+  // UX helpers for editor focusing on blank clicks
+  private editorClickHandler: ((e: MouseEvent) => void) | null = null;
+  private editorClickAttachedEl: HTMLElement | null = null;
   private containerElRef: HTMLElement | null = null;
   private containerPosPatched: boolean = false;
   private previewCollapsed: boolean = false;
@@ -64,6 +67,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
     } catch {
       this.settings = { ...DEFAULT_SETTINGS };
     }
+
     this.addSettingTab(new CanvasMdSideEditorSettingTab((this as any).app, this));
 
     // Start with preview visible by default. Collapsed state is session-only.
@@ -589,6 +593,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
         const v = this.cmView as EditorView;
         v.scrollDOM.addEventListener('scroll', this.cmScrollHandler, { passive: true });
       }
+      // Ensure clicking blank area focuses editor and places caret
+      this.setupEditorBlankClickHandler();
     }
 
     // Initial render
@@ -637,6 +643,14 @@ class CanvasMdSideEditorPlugin extends Plugin {
       this.cmView = null;
     }
     this.cmScrollHandler = null;
+    // Detach editor blank-click handler if attached
+    try {
+      if (this.editorClickAttachedEl && this.editorClickHandler) {
+        this.editorClickAttachedEl.removeEventListener('mousedown', this.editorClickHandler);
+      }
+    } catch {}
+    this.editorClickAttachedEl = null;
+    this.editorClickHandler = null;
     if (this.panelEl) {
       this.panelEl.remove();
       this.panelEl = null;
@@ -699,6 +713,38 @@ class CanvasMdSideEditorPlugin extends Plugin {
     } catch {
       // fallback to simple sync
       this.syncPreviewScroll();
+    }
+  }
+
+  private setupEditorBlankClickHandler() {
+    if (!this.editorRootEl || !this.cmView || this.settings.readOnly) return;
+    const root = this.editorRootEl;
+    // If handler already attached to another element, detach first
+    if (this.editorClickAttachedEl && this.editorClickAttachedEl !== root && this.editorClickHandler) {
+      try { this.editorClickAttachedEl.removeEventListener('mousedown', this.editorClickHandler); } catch {}
+    }
+    // Define handler if not exists
+    if (!this.editorClickHandler) {
+      this.editorClickHandler = (evt: MouseEvent) => {
+        try {
+          if (!this.cmView) return;
+          if (evt.button !== 0) return; // left click only
+          const t = evt.target as HTMLElement | null;
+          // Let CodeMirror handle clicks within content/lines normally
+          if (t && (t.closest('.cm-content') || t.closest('.cm-line'))) return;
+          const pos = (this.cmView as EditorView).posAtCoords({ x: evt.clientX, y: evt.clientY } as any) as any;
+          const at = (pos == null) ? (this.cmView as EditorView).state.doc.length : (pos as number);
+          (this.cmView as EditorView).dispatch({ selection: { anchor: at } });
+          (this.cmView as EditorView).focus();
+          evt.preventDefault();
+          evt.stopPropagation();
+        } catch {}
+      };
+    }
+    // Attach to current root if not already
+    if (this.editorClickAttachedEl !== root) {
+      root.addEventListener('mousedown', this.editorClickHandler!);
+      this.editorClickAttachedEl = root;
     }
   }
 
