@@ -34,6 +34,40 @@ If your plugin does not need CSS, delete this file.
 /* When JS sets a custom panel width via CSS variable */
 .canvas-md-side-editor-panel.cmside-has-custom-width { width: var(--cmside-panel-width, min(48%, 640px)); }
 
+/* Preset panel widths (themes/snippets can override these values) */
+.canvas-md-side-editor-panel.cmside-width-narrow  { --cmside-panel-width: 320px; }
+.canvas-md-side-editor-panel.cmside-width-medium  { --cmside-panel-width: 420px; }
+.canvas-md-side-editor-panel.cmside-width-wide    { --cmside-panel-width: 560px; }
+.canvas-md-side-editor-panel.cmside-width-xwide   { --cmside-panel-width: 640px; }
+
+/* Quantized panel widths (300..800 step 20) */
+.canvas-md-side-editor-panel.cmside-width-w300 { --cmside-panel-width: 300px; }
+.canvas-md-side-editor-panel.cmside-width-w320 { --cmside-panel-width: 320px; }
+.canvas-md-side-editor-panel.cmside-width-w340 { --cmside-panel-width: 340px; }
+.canvas-md-side-editor-panel.cmside-width-w360 { --cmside-panel-width: 360px; }
+.canvas-md-side-editor-panel.cmside-width-w380 { --cmside-panel-width: 380px; }
+.canvas-md-side-editor-panel.cmside-width-w400 { --cmside-panel-width: 400px; }
+.canvas-md-side-editor-panel.cmside-width-w420 { --cmside-panel-width: 420px; }
+.canvas-md-side-editor-panel.cmside-width-w440 { --cmside-panel-width: 440px; }
+.canvas-md-side-editor-panel.cmside-width-w460 { --cmside-panel-width: 460px; }
+.canvas-md-side-editor-panel.cmside-width-w480 { --cmside-panel-width: 480px; }
+.canvas-md-side-editor-panel.cmside-width-w500 { --cmside-panel-width: 500px; }
+.canvas-md-side-editor-panel.cmside-width-w520 { --cmside-panel-width: 520px; }
+.canvas-md-side-editor-panel.cmside-width-w540 { --cmside-panel-width: 540px; }
+.canvas-md-side-editor-panel.cmside-width-w560 { --cmside-panel-width: 560px; }
+.canvas-md-side-editor-panel.cmside-width-w580 { --cmside-panel-width: 580px; }
+.canvas-md-side-editor-panel.cmside-width-w600 { --cmside-panel-width: 600px; }
+.canvas-md-side-editor-panel.cmside-width-w620 { --cmside-panel-width: 620px; }
+.canvas-md-side-editor-panel.cmside-width-w640 { --cmside-panel-width: 640px; }
+.canvas-md-side-editor-panel.cmside-width-w660 { --cmside-panel-width: 660px; }
+.canvas-md-side-editor-panel.cmside-width-w680 { --cmside-panel-width: 680px; }
+.canvas-md-side-editor-panel.cmside-width-w700 { --cmside-panel-width: 700px; }
+.canvas-md-side-editor-panel.cmside-width-w720 { --cmside-panel-width: 720px; }
+.canvas-md-side-editor-panel.cmside-width-w740 { --cmside-panel-width: 740px; }
+.canvas-md-side-editor-panel.cmside-width-w760 { --cmside-panel-width: 760px; }
+.canvas-md-side-editor-panel.cmside-width-w780 { --cmside-panel-width: 780px; }
+.canvas-md-side-editor-panel.cmside-width-w800 { --cmside-panel-width: 800px; }
+
 /* Container patch class used instead of setting inline position in JS */
 .cmside-container-patched { position: relative; }
 
@@ -153,6 +187,18 @@ If your plugin does not need CSS, delete this file.
 .canvas-md-side-editor-panel .cmside-preview-root.markdown-preview-view { height: 100%; min-height: 0; }
 .canvas-md-side-editor-panel .cmside-preview-root img { max-width: 100%; height: auto; }
 
+.canvas-md-side-editor-panel.cmside-editor-font-xs { --cmside-editor-font-size: 12px; }
+.canvas-md-side-editor-panel.cmside-editor-font-sm { --cmside-editor-font-size: 13px; }
+.canvas-md-side-editor-panel.cmside-editor-font-md { --cmside-editor-font-size: 14px; }
+.canvas-md-side-editor-panel.cmside-editor-font-lg { --cmside-editor-font-size: 16px; }
+.canvas-md-side-editor-panel.cmside-editor-font-xl { --cmside-editor-font-size: 18px; }
+
+.canvas-md-side-editor-panel.cmside-preview-font-xs { --cmside-preview-font-size: 12px; }
+.canvas-md-side-editor-panel.cmside-preview-font-sm { --cmside-preview-font-size: 13px; }
+.canvas-md-side-editor-panel.cmside-preview-font-md { --cmside-preview-font-size: 14px; }
+.canvas-md-side-editor-panel.cmside-preview-font-lg { --cmside-preview-font-size: 16px; }
+.canvas-md-side-editor-panel.cmside-preview-font-xl { --cmside-preview-font-size: 18px; }
+
 .canvas-md-side-editor-panel .cmside-divider {
   width: 6px;
   cursor: col-resize;
@@ -165,6 +211,44 @@ If your plugin does not need CSS, delete this file.
 /* When the editor width is locked via divider drag, use a CSS variable */
 .canvas-md-side-editor-panel.cmside-editor-fixed .cmside-pane-editor { flex: 0 0 var(--cmside-editor-width, 320px); }
 .canvas-md-side-editor-panel.cmside-editor-fixed .cmside-pane-preview { flex: 1 1 auto; }
+
+/* Preset editor widths for divider drag locking */
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-320 { --cmside-editor-width: 320px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-420 { --cmside-editor-width: 420px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-560 { --cmside-editor-width: 560px; }
+
+/* Quantized editor widths (200..800 step 20) */
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-200 { --cmside-editor-width: 200px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-220 { --cmside-editor-width: 220px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-240 { --cmside-editor-width: 240px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-260 { --cmside-editor-width: 260px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-280 { --cmside-editor-width: 280px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-300 { --cmside-editor-width: 300px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-320 { --cmside-editor-width: 320px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-340 { --cmside-editor-width: 340px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-360 { --cmside-editor-width: 360px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-380 { --cmside-editor-width: 380px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-400 { --cmside-editor-width: 400px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-420 { --cmside-editor-width: 420px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-440 { --cmside-editor-width: 440px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-460 { --cmside-editor-width: 460px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-480 { --cmside-editor-width: 480px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-500 { --cmside-editor-width: 500px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-520 { --cmside-editor-width: 520px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-540 { --cmside-editor-width: 540px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-560 { --cmside-editor-width: 560px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-580 { --cmside-editor-width: 580px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-600 { --cmside-editor-width: 600px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-620 { --cmside-editor-width: 620px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-640 { --cmside-editor-width: 640px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-660 { --cmside-editor-width: 660px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-680 { --cmside-editor-width: 680px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-700 { --cmside-editor-width: 700px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-720 { --cmside-editor-width: 720px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-740 { --cmside-editor-width: 740px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-760 { --cmside-editor-width: 760px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-780 { --cmside-editor-width: 780px; }
+.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-800 { --cmside-editor-width: 800px; }
 
 /* Optional active line mask (if used) driven by CSS variables set from JS */
 .canvas-md-side-editor-panel .cmside-active-line-mask {

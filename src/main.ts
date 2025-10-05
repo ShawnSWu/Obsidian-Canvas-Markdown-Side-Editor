@@ -342,22 +342,19 @@ class CanvasMdSideEditorPlugin extends Plugin {
       try { console.debug?.('CanvasMdSideEditor: pointerup qualify', { isPrimaryButton, dt, dx, dy, moved, isLongPress, qualifiesSingleClick }); } catch {}
 
       if (qualifiesSingleClick) {
-        // If we don't have a pending id yet, try elementsFromPoint or Canvas API
-        if (!this.pendingNodeId) {
-          const idByPoint = findNodeIdAtPoint(evt.clientX, evt.clientY);
-          if (idByPoint) this.pendingNodeId = idByPoint;
-          if (!this.pendingNodeId) {
-            const idByApi = await tryAPIsHit(view, evt.clientX, evt.clientY);
-            if (idByApi) this.pendingNodeId = idByApi;
-          }
-        }
-        try { console.debug?.('CanvasMdSideEditor: pointerup pendingNodeId', this.pendingNodeId); } catch {}
-        if (this.pendingNodeId) {
-          const node = await getNodeByIdUtil(this.app, view, this.pendingNodeId);
+        // Always resolve the clicked node id to avoid stale pendingNodeId
+        let clickId: string | null = findNodeIdAtPoint(evt.clientX, evt.clientY);
+        if (!clickId) clickId = await tryAPIsHit(view, evt.clientX, evt.clientY);
+        if (!clickId) clickId = await getSelId(view);
+        if (!clickId) clickId = this.pendingNodeId ?? null;
+
+        try { console.debug?.('CanvasMdSideEditor: pointerup resolved clickId', clickId, 'pending', this.pendingNodeId); } catch {}
+        if (clickId) {
+          const node = await getNodeByIdUtil(this.app, view, clickId);
           if (node) {
             const isMd = node.type === 'text' || (node.type === 'file' && typeof node.file === 'string' && node.file.toLowerCase().endsWith('.md'));
             if (isMd) {
-              if (this.panelEl && this.currentNodeId && this.currentNodeId !== this.pendingNodeId) {
+              if (this.panelEl && this.currentNodeId && this.currentNodeId !== clickId) {
                 await this.saveCurrentEdits(view);
               }
               await this.openEditorForNode(view, node);
