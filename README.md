@@ -52,45 +52,20 @@ The goal is simple:
 
 ## 📦 Installation
 
-### 🧭 Option 1 — Install from Obsidian Community Plugins (Recommended)
+## 🧭 Option 1 — Install via BRAT (Recommand before approval)
 
-1. Open **Obsidian**.
-2. Go to **Settings → Community Plugins**.
-3. Turn off **Safe Mode** if it’s enabled.
-4. Click **Browse** and search for `Canvas MD Side Editor`.
-5. Click **Install**, then **Enable** the plugin.
+While this plugin is awaiting approval in the Obsidian Community Plugins, we recommend installing it via BRAT for automatic updates:
 
----
-
-### 🛠️ Option 2 — Manual Installation from GitHub Releases
-
-If the plugin has not been published to the community store yet, you can install it manually:
-
-1. Go to the [GitHub Releases page](https://github.com/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor/releases).  
-2. Download the latest release zip file, e.g.  
-3. Unzip the file. You should see something like:
-   * main.js
-   * manifest.json
-   * styles.css
-4. Locate your Obsidian **vault folder** on your computer.
-5. Inside your vault, navigate to the plugins folder:
-   * `.obsidian/plugins/`
-   * 
-> 📌 If the `plugins` folder doesn’t exist yet, create it manually.
-6. Create a new folder for this plugin (e.g. `canvas-md-side-editor`) and put the three files into it:
-```text
-.obsidian/plugins/canvas-md-side-editor/
-├── main.js
-├── manifest.json
-└── styles.css
-```
-7. Go back to Obsidian:
-- Open **Settings → Community Plugins**
-- Click **Reload plugins** (if needed)
-- Find **Canvas MD Side Editor** in the list and toggle it ON ✅
+1. Enable third‑party plugins: Settings → `Community Plugins` → Turn on.
+2. Install BRAT: Settings → `Community Plugins` → `Browse` → search “BRAT” → Install and enable.
+3. Open BRAT settings: Settings → BRAT → Add Beta plugin.
+4. Paste the repository URL: `https://github.com/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor`
+5. Confirm. BRAT will automatically download and install the plugin, and fetch future updates.
 
 👉 Now, Try clicking a Canvas card now and start typing — it’s that smooth 🚀
+
 ---
+
 
 ## ⚙️ Settings
 <img width="1083" height="695" alt="image" src="https://github.com/user-attachments/assets/b70444cb-c9fe-48a2-bfca-ab19f03ba868" />
