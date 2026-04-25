@@ -20,6 +20,7 @@ export class PanelController {
   private previewRootEl: HTMLElement | null = null;
   private toggleBtn!: HTMLButtonElement;
   private closeBtn!: HTMLButtonElement;
+  private titleEl!: HTMLElement;
   private dividerEl!: HTMLElement;
   private editorPaneEl!: HTMLElement;
   private previewPaneEl!: HTMLElement;
@@ -98,6 +99,7 @@ export class PanelController {
     this.previewRootEl = previewRoot;
     this.toggleBtn = toggleBtn;
     this.closeBtn = closeBtn;
+    this.titleEl = titleEl;
     this.dividerEl = divider;
     this.editorPaneEl = editorPane;
     this.previewPaneEl = previewPane;
@@ -200,6 +202,49 @@ export class PanelController {
       const s = this.getSettings();
       if (this.panelEl && s) this.applyFontSizeClassesFromSettings(s);
     } catch {}
+  }
+
+  // Render the toolbar title. When `onCommit` is provided the title is shown
+  // as an editable <input>; the callback fires on Enter or blur, but only if
+  // the value actually changed (Escape reverts and skips the callback).
+  setTitle(text: string, onCommit?: (newText: string) => void): void {
+    if (!this.titleEl) return;
+    this.titleEl.empty();
+    this.titleEl.classList.toggle('cmside-title-editable', !!onCommit);
+    if (!onCommit) {
+      this.titleEl.setText(text);
+      return;
+    }
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'cmside-title-input';
+    input.value = text;
+    input.spellcheck = false;
+
+    let committed = false;
+    let original = text;
+    const commit = () => {
+      if (committed) return;
+      committed = true;
+      const newText = input.value;
+      if (newText !== original) {
+        try { onCommit(newText); } catch {}
+      }
+    };
+    input.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        input.blur();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        input.value = original;
+        committed = true;
+        input.blur();
+      }
+    });
+    input.addEventListener('blur', commit);
+
+    this.titleEl.appendChild(input);
   }
 
   // Internal wiring

@@ -41,6 +41,20 @@ export class Vault {
     return new TFile(path);
   });
   createFolder = vi.fn(async (_path: string) => undefined);
+  rename = vi.fn(async (file: TFile, newPath: string) => {
+    const old = file.path;
+    if (this.files.has(old)) {
+      const content = this.files.get(old)!;
+      this.files.delete(old);
+      this.files.set(newPath, content);
+    }
+    file.path = newPath;
+    const idx = newPath.lastIndexOf('/');
+    file.name = idx === -1 ? newPath : newPath.slice(idx + 1);
+    const dot = file.name.lastIndexOf('.');
+    file.basename = dot === -1 ? file.name : file.name.slice(0, dot);
+    file.extension = dot === -1 ? '' : file.name.slice(dot + 1);
+  });
   getAbstractFileByPath = vi.fn((path: string) => {
     if (this.files.has(path)) return new TFile(path);
     return null;
@@ -164,6 +178,15 @@ export const addIcon = vi.fn();
 export const setIcon = vi.fn((el: HTMLElement, name: string) => {
   el.setAttribute('data-icon', name);
 });
+
+export const __notices: string[] = [];
+export class Notice {
+  message: string;
+  constructor(message: string, _timeoutMs?: number) {
+    this.message = message;
+    __notices.push(message);
+  }
+}
 
 // Re-export so `import type { TFile } from 'obsidian'` works
 export type { TFile as TFileType } from './obsidian';

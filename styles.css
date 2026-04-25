@@ -86,6 +86,28 @@ If your plugin does not need CSS, delete this file.
   font-size: 12px;
   font-weight: 600;
   opacity: 0.8;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.canvas-md-side-editor-panel .cmside-title.cmside-title-editable {
+  opacity: 1;
+}
+.canvas-md-side-editor-panel .cmside-title-input {
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-normal);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+}
+.canvas-md-side-editor-panel .cmside-title-input:focus,
+.canvas-md-side-editor-panel .cmside-title-input:hover {
+  border-color: var(--background-modifier-border);
+  background: var(--background-primary);
 }
 .canvas-md-side-editor-panel .cmside-actions { display: flex; gap: 6px; }
 .canvas-md-side-editor-panel .cmside-toggle-preview-btn,

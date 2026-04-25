@@ -4,6 +4,7 @@ export interface CanvasMdSideEditorSettings {
   editorFontSize: number | null;   // px, null = follow theme
   previewFontSize: number | null;  // px, null = follow theme
   readOnly?: boolean;              // when true, show only preview (no editor)
+  showCardTitle?: boolean;         // when true, toolbar shows an editable card title (issue #10)
 }
 
 export const DEFAULT_SETTINGS: CanvasMdSideEditorSettings = {
@@ -12,4 +13,5 @@ export const DEFAULT_SETTINGS: CanvasMdSideEditorSettings = {
   editorFontSize: null,
   previewFontSize: null,
   readOnly: false,
+  showCardTitle: false,
 };

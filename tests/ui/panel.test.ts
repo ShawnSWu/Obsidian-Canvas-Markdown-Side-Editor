@@ -130,6 +130,86 @@ describe('PanelController.applyFontSizes', () => {
   });
 });
 
+describe('PanelController.setTitle', () => {
+  it('renders static text when no commit handler is provided', () => {
+    const { controller } = setup();
+    const refs = controller.create();
+    controller.setTitle('My note');
+    const titleEl = refs.panelEl.querySelector('.cmside-title') as HTMLElement;
+    expect(titleEl.textContent).toBe('My note');
+    expect(titleEl.querySelector('input')).toBeFalsy();
+    expect(titleEl.classList.contains('cmside-title-editable')).toBe(false);
+  });
+
+  it('renders an editable input when a commit handler is provided', () => {
+    const { controller } = setup();
+    const refs = controller.create();
+    controller.setTitle('foo', () => {});
+    const titleEl = refs.panelEl.querySelector('.cmside-title') as HTMLElement;
+    const input = titleEl.querySelector('input.cmside-title-input') as HTMLInputElement;
+    expect(input).toBeTruthy();
+    expect(input.value).toBe('foo');
+    expect(titleEl.classList.contains('cmside-title-editable')).toBe(true);
+  });
+
+  it('fires the commit handler on Enter when the value changed', () => {
+    const onCommit = vi.fn();
+    const { controller } = setup();
+    controller.create();
+    controller.setTitle('foo', onCommit);
+    const input = document.querySelector('input.cmside-title-input') as HTMLInputElement;
+    input.value = 'bar';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    // Enter triggers blur which triggers commit
+    input.dispatchEvent(new Event('blur'));
+    expect(onCommit).toHaveBeenCalledWith('bar');
+  });
+
+  it('fires the commit handler on blur when the value changed', () => {
+    const onCommit = vi.fn();
+    const { controller } = setup();
+    controller.create();
+    controller.setTitle('foo', onCommit);
+    const input = document.querySelector('input.cmside-title-input') as HTMLInputElement;
+    input.value = 'baz';
+    input.dispatchEvent(new Event('blur'));
+    expect(onCommit).toHaveBeenCalledWith('baz');
+  });
+
+  it('does not fire the commit handler when the value is unchanged', () => {
+    const onCommit = vi.fn();
+    const { controller } = setup();
+    controller.create();
+    controller.setTitle('foo', onCommit);
+    const input = document.querySelector('input.cmside-title-input') as HTMLInputElement;
+    input.dispatchEvent(new Event('blur'));
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('Escape reverts the value and skips the commit handler', () => {
+    const onCommit = vi.fn();
+    const { controller } = setup();
+    controller.create();
+    controller.setTitle('foo', onCommit);
+    const input = document.querySelector('input.cmside-title-input') as HTMLInputElement;
+    input.value = 'changed';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    input.dispatchEvent(new Event('blur'));
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(input.value).toBe('foo');
+  });
+
+  it('switching from editable back to static replaces the input', () => {
+    const { controller } = setup();
+    const refs = controller.create();
+    controller.setTitle('a', () => {});
+    expect(refs.panelEl.querySelector('input.cmside-title-input')).toBeTruthy();
+    controller.setTitle('Static');
+    expect(refs.panelEl.querySelector('input.cmside-title-input')).toBeFalsy();
+    expect(refs.panelEl.querySelector('.cmside-title')?.textContent).toBe('Static');
+  });
+});
+
 describe('PanelController.destroy', () => {
   it('removes the panel from the container', () => {
     const { container, controller } = setup();

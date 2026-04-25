@@ -1,7 +1,8 @@
 import { EditorView } from '@codemirror/view';
-import { Plugin, TFile, WorkspaceLeaf, addIcon, setIcon } from 'obsidian';
+import { Notice, Plugin, TFile, WorkspaceLeaf, addIcon, setIcon } from 'obsidian';
 import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS } from './settings';
 import type { CanvasNode, CanvasData, CanvasLikeView, CanvasLike } from './types';
+import { buildRenamePath, extractTitleFromText, patchFirstLineWithTitle } from './utils/card-title';
 import { iconOneCol, iconTwoCols } from './ui/icons';
 import { CanvasMdSideEditorSettingTab } from './ui/setting-tab';
 import { findNodeIdAtPoint } from './utils/canvas';
@@ -639,6 +640,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
     // Initial render
     await this.renderPreview(initial);
 
+    // Render the toolbar title (static or editable depending on settings).
+    this.applyCardTitle(view, node, initial);
+
     // Slide in
     this.panelEl.classList.add('open');
     // Re-render shortly after opening to account for layout/transition timing
@@ -675,6 +679,73 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
   public applyFontSizes() {
     try { this.panelController?.applyFontSizes?.(); } catch {}
+  }
+
+  // Re-render the toolbar title using the currently open node. Called by the
+  // settings tab when the user toggles "Show editable card title".
+  public refreshCardTitle(): void {
+    if (!this.panelController || !this.currentNode || !this.lastCanvasView) return;
+    const initial = this.cmView?.state.doc.toString() ?? '';
+    this.applyCardTitle(this.lastCanvasView, this.currentNode, initial);
+  }
+
+  private applyCardTitle(view: CanvasLikeView, node: CanvasNode, currentContent: string): void {
+    if (!this.panelController) return;
+    if (!this.settings.showCardTitle) {
+      this.panelController.setTitle('Canvas MD Side Editor');
+      return;
+    }
+    if (node.type === 'file' && typeof node.file === 'string') {
+      const file = this.resolveVaultFile(node.file);
+      const basename = file?.basename ?? '';
+      this.panelController.setTitle(basename, (newName) => {
+        if (file) void this.commitFileRename(file, newName, node);
+      });
+      return;
+    }
+    if (node.type === 'text') {
+      const initialTitle = extractTitleFromText(currentContent);
+      this.panelController.setTitle(initialTitle, (newTitle) => {
+        void this.commitTextTitle(view, newTitle);
+      });
+      return;
+    }
+    this.panelController.setTitle('Canvas MD Side Editor');
+  }
+
+  private async commitFileRename(file: TFile, newBasename: string, node: CanvasNode): Promise<void> {
+    const plan = buildRenamePath(file.path, newBasename);
+    if (!plan.valid) {
+      new Notice(`Cannot rename: ${plan.reason}`);
+      this.refreshCardTitle();
+      return;
+    }
+    if (plan.path === file.path) return;
+    if (this.app.vault.getAbstractFileByPath(plan.path)) {
+      new Notice('A file with that name already exists');
+      this.refreshCardTitle();
+      return;
+    }
+    try {
+      await this.app.vault.rename(file, plan.path);
+      // Keep our in-memory references in sync so subsequent saves go to the
+      // new path rather than the now-defunct one.
+      if (typeof node.file === 'string') node.file = plan.path;
+      this.currentSourcePath = plan.path;
+      this.previewHelper?.setSourcePath(plan.path);
+    } catch {
+      new Notice('Rename failed');
+      this.refreshCardTitle();
+    }
+  }
+
+  private async commitTextTitle(view: CanvasLikeView, newTitle: string): Promise<void> {
+    if (!this.cmView) return;
+    const doc = this.cmView.state.doc.toString();
+    const patched = patchFirstLineWithTitle(doc, newTitle);
+    if (patched === doc) return;
+    this.cmView.dispatch({ changes: { from: 0, to: doc.length, insert: patched } });
+    await this.saveCurrentEdits(view);
   }
 
   private teardownPanel() {

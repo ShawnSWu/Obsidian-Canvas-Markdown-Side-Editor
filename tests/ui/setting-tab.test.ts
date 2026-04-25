@@ -37,8 +37,9 @@ function fire(input: HTMLInputElement, value: string | boolean) {
 describe('CanvasMdSideEditorSettingTab.display', () => {
   it('renders one input per setting', () => {
     const { tab } = setup();
-    // 4 number inputs (panel width, debounce, editor font, preview font) + 1 checkbox (read only)
-    expect(tab.containerEl.querySelectorAll('input').length).toBe(5);
+    // 4 number inputs (panel width, debounce, editor font, preview font)
+    // + 2 checkboxes (read only, show card title)
+    expect(tab.containerEl.querySelectorAll('input').length).toBe(6);
   });
 });
 
@@ -97,7 +98,7 @@ describe('Read only toggle', () => {
 describe('Font size inputs', () => {
   it('persists editor font size and re-applies', async () => {
     const { tab, plugin, settings } = setup({ editorFontSize: 16 });
-    const input = nthInput(tab.containerEl, 3);
+    const input = nthInput(tab.containerEl, 4);
     fire(input, '14');
     expect(settings.editorFontSize).toBe(14);
     await flushAsync();
@@ -106,7 +107,7 @@ describe('Font size inputs', () => {
 
   it('persists preview font size and re-applies', async () => {
     const { tab, plugin, settings } = setup({ previewFontSize: 16 });
-    const input = nthInput(tab.containerEl, 4);
+    const input = nthInput(tab.containerEl, 5);
     fire(input, '18');
     expect(settings.previewFontSize).toBe(18);
     await flushAsync();
@@ -115,7 +116,7 @@ describe('Font size inputs', () => {
 
   it('rejects font sizes below 8 px', async () => {
     const { tab, plugin, settings } = setup({ editorFontSize: 16 });
-    const input = nthInput(tab.containerEl, 3);
+    const input = nthInput(tab.containerEl, 4);
     fire(input, '4');
     expect(settings.editorFontSize).toBe(16);
     await flushAsync();

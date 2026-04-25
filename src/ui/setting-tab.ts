@@ -7,6 +7,7 @@ interface CanvasMdSideEditorPluginLike {
   saveData(data: unknown): Promise<void>;
   setReadOnly?(v: boolean): void;
   applyFontSizes?(): void;
+  refreshCardTitle?(): void;
 }
 
 export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
@@ -62,6 +63,18 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
           this.plugin.settings.readOnly = !!val;
           await this.plugin.saveData(this.plugin.settings);
           this.plugin.setReadOnly?.(!!val);
+        });
+      });
+
+    new Setting(containerEl)
+      .setName('Show editable card title')
+      .setDesc('Show the card title at the top of the side panel. Editing renames the file (file cards) or rewrites the first line (text cards).')
+      .addToggle((tg) => {
+        tg.setValue(!!this.plugin.settings.showCardTitle);
+        tg.onChange(async (val) => {
+          this.plugin.settings.showCardTitle = !!val;
+          await this.plugin.saveData(this.plugin.settings);
+          this.plugin.refreshCardTitle?.();
         });
       });
 
