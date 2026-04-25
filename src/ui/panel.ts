@@ -1,4 +1,12 @@
-import type { CanvasMdSideEditorSettings } from '../settings';
+import type { CanvasMdSideEditorSettings, DockPosition } from '../settings';
+
+const DOCK_CLASSES: Record<DockPosition, string> = {
+  left: 'cmside-dock-left',
+  right: 'cmside-dock-right',
+  top: 'cmside-dock-top',
+  bottom: 'cmside-dock-bottom',
+};
+const ALL_DOCK_CLASSES = Object.values(DOCK_CLASSES);
 
 export type PanelRefs = {
   panelEl: HTMLElement;
@@ -14,6 +22,7 @@ export class PanelController {
   private persistSettings: (s: CanvasMdSideEditorSettings) => Promise<void> | void;
   private previewCollapsed: boolean;
   private readOnly: boolean = false;
+  private dockPosition: DockPosition = 'right';
 
   private panelEl: HTMLElement | null = null;
   private editorRootEl: HTMLElement | null = null;
@@ -57,12 +66,20 @@ export class PanelController {
     } catch {}
 
     const panel = this.container.createDiv({ cls: 'canvas-md-side-editor-panel' });
-    // Apply default width from settings
+    // Apply dock position class based on settings (issue #11).
+    const initialDock = this.getSettings()?.dockPosition ?? 'right';
+    this.dockPosition = initialDock;
+    panel.classList.add(DOCK_CLASSES[initialDock]);
+    // Apply default size from settings (width for L/R, height for T/B).
     try {
-      const w = this.getSettings()?.defaultPanelWidth;
-      if (typeof w === 'number' && w > 0) {
+      const s = this.getSettings();
+      const isHorizontal = initialDock === 'left' || initialDock === 'right';
+      const dim = isHorizontal ? s?.defaultPanelWidth : s?.defaultPanelHeight;
+      if (typeof dim === 'number' && dim > 0) {
         panel.classList.add('cmside-has-custom-width');
-        const cls = this.mapToPanelWidthClass(Math.round(w));
+        const cls = isHorizontal
+          ? this.mapToPanelWidthClass(Math.round(dim))
+          : this.mapToPanelHeightClass(Math.round(dim));
         if (cls) {
           panel.classList.add(cls);
           this.currentPanelWidthClass = cls;
@@ -247,34 +264,89 @@ export class PanelController {
     this.titleEl.appendChild(input);
   }
 
+  // Swap the dock position class. The drag axis used by the panel resizer is
+  // re-derived from this on each drag, so no resizer rebuild is needed.
+  setDockPosition(pos: DockPosition): void {
+    this.dockPosition = pos;
+    if (!this.panelEl) return;
+    for (const c of ALL_DOCK_CLASSES) this.panelEl.classList.remove(c);
+    this.panelEl.classList.add(DOCK_CLASSES[pos]);
+    // Drop the previously locked size; the new dock direction has its own
+    // size dimension (width vs height) and applies a fresh preset.
+    if (this.currentPanelWidthClass) {
+      this.panelEl.classList.remove(this.currentPanelWidthClass);
+      this.currentPanelWidthClass = null;
+    }
+    try {
+      const s = this.getSettings();
+      const isHorizontal = pos === 'left' || pos === 'right';
+      const dim = isHorizontal ? s?.defaultPanelWidth : s?.defaultPanelHeight;
+      if (typeof dim === 'number' && dim > 0) {
+        this.panelEl.classList.add('cmside-has-custom-width');
+        const cls = isHorizontal
+          ? this.mapToPanelWidthClass(Math.round(dim))
+          : this.mapToPanelHeightClass(Math.round(dim));
+        if (cls) {
+          this.panelEl.classList.add(cls);
+          this.currentPanelWidthClass = cls;
+        }
+      }
+    } catch {}
+  }
+
   // Internal wiring
   private setupPanelResize(panel: HTMLElement) {
     const onPanelResizerPointerDown = (ev: PointerEvent) => {
       ev.preventDefault();
-      const startX = ev.clientX;
-      const startWidth = panel.getBoundingClientRect().width;
+      // Dock direction decides which axis the user is dragging along, and
+      // whether the panel grows/shrinks with positive or negative delta.
+      const pos = this.dockPosition;
+      const isHorizontal = pos === 'left' || pos === 'right';
+      const startCoord = isHorizontal ? ev.clientX : ev.clientY;
+      const rect = panel.getBoundingClientRect();
+      const startSize = isHorizontal ? rect.width : rect.height;
       const containerRect = this.container.getBoundingClientRect();
-      const minWidth = 300; // px (align with preset classes)
-      const maxWidth = Math.max(minWidth, Math.min(containerRect.width - 120, containerRect.width));
+      const containerSize = isHorizontal ? containerRect.width : containerRect.height;
+      const minSize = isHorizontal ? 300 : 200; // px (align with preset classes)
+      const maxSize = Math.max(minSize, Math.min(containerSize - 120, containerSize));
+      // Resizer sits on the inner edge of the panel:
+      //   right dock  → resizer on left edge  → drag right shrinks (delta>0 → -)
+      //   left  dock  → resizer on right edge → drag right grows   (delta>0 → +)
+      //   bottom dock → resizer on top edge   → drag down shrinks  (delta>0 → -)
+      //   top    dock → resizer on bottom edge → drag down grows   (delta>0 → +)
+      const sign = (pos === 'right' || pos === 'bottom') ? -1 : 1;
       panel.classList.add('resizing-panel');
       try { (ev.target as Element)?.setPointerCapture?.(ev.pointerId); } catch {}
 
       const onMove = (mv: PointerEvent) => {
-        const delta = mv.clientX - startX; // dragging right -> delta>0 -> width decreases
-        const newW = Math.min(maxWidth, Math.max(minWidth, startWidth - delta));
-        // Apply nearest preset class live while dragging
+        const cur = isHorizontal ? mv.clientX : mv.clientY;
+        const delta = (cur - startCoord) * sign;
+        const newSize = Math.min(maxSize, Math.max(minSize, startSize + delta));
         panel.classList.add('cmside-has-custom-width');
-        const cls = this.mapToPanelWidthClass(Math.round(newW));
+        const cls = isHorizontal
+          ? this.mapToPanelWidthClass(Math.round(newSize))
+          : this.mapToPanelHeightClass(Math.round(newSize));
         if (cls && this.currentPanelWidthClass !== cls) {
           if (this.currentPanelWidthClass) panel.classList.remove(this.currentPanelWidthClass);
           panel.classList.add(cls);
           this.currentPanelWidthClass = cls;
         }
       };
-      const onUp = () => {
+      const onUp = async () => {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         panel.classList.remove('resizing-panel');
+        // Persist the new size to the dimension matching the current dock.
+        try {
+          const s = this.getSettings();
+          const r = panel.getBoundingClientRect();
+          const newDim = isHorizontal ? r.width : r.height;
+          if (newDim && isFinite(newDim) && s) {
+            if (isHorizontal) s.defaultPanelWidth = Math.round(newDim);
+            else s.defaultPanelHeight = Math.round(newDim);
+            await this.persistSettings(s);
+          }
+        } catch {}
       };
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp, { once: true });
@@ -358,6 +430,12 @@ export class PanelController {
     // Quantize to 300..800, step 20 -> class: cmside-width-w{px}
     const q = this.quantize(px, 300, 800, 20);
     return q ? `cmside-width-w${q}` : null;
+  }
+
+  private mapToPanelHeightClass(px: number): string | null {
+    // Quantize to 200..700, step 20 -> class: cmside-height-h{px}
+    const q = this.quantize(px, 200, 700, 20);
+    return q ? `cmside-height-h${q}` : null;
   }
 
   private mapToEditorWidthClass(px: number): string | null {

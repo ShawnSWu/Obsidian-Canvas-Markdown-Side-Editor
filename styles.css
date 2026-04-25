@@ -282,3 +282,110 @@ If your plugin does not need CSS, delete this file.
   height: var(--cmside-active-mask-height, 0);
   pointer-events: none;
 }
+
+/* === Docking (issue #11) ===
+ * The base rules above target the right dock (the original default).
+ * Each direction class re-anchors the panel and re-aims the slide-in
+ * animation, the panel border, and the inner-edge resizer accordingly.
+ */
+
+/* Left dock — mirror of right */
+.canvas-md-side-editor-panel.cmside-dock-left {
+  right: auto;
+  left: 0;
+  border-left: none;
+  border-right: 1px solid var(--background-modifier-border);
+  transform: translateX(-100%);
+}
+.canvas-md-side-editor-panel.cmside-dock-left.open { transform: translateX(0); }
+.canvas-md-side-editor-panel.cmside-dock-left .cmside-panel-resizer {
+  left: auto;
+  right: 0;
+}
+
+/* Top dock — full width across the top */
+.canvas-md-side-editor-panel.cmside-dock-top {
+  top: 0;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  width: 100%;
+  height: var(--cmside-panel-height, min(48%, 480px));
+  border-left: none;
+  border-bottom: 1px solid var(--background-modifier-border);
+  transform: translateY(-100%);
+}
+.canvas-md-side-editor-panel.cmside-dock-top.open { transform: translateY(0); }
+.canvas-md-side-editor-panel.cmside-dock-top .cmside-panel-resizer {
+  top: auto;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+/* Bottom dock — full width across the bottom */
+.canvas-md-side-editor-panel.cmside-dock-bottom {
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: var(--cmside-panel-height, min(48%, 480px));
+  border-left: none;
+  border-top: 1px solid var(--background-modifier-border);
+  transform: translateY(100%);
+}
+.canvas-md-side-editor-panel.cmside-dock-bottom.open { transform: translateY(0); }
+.canvas-md-side-editor-panel.cmside-dock-bottom .cmside-panel-resizer {
+  bottom: auto;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+/* Resize cursor while dragging on a vertical-axis dock */
+.canvas-md-side-editor-panel.cmside-dock-top.resizing-panel,
+.canvas-md-side-editor-panel.cmside-dock-top.resizing-panel *,
+.canvas-md-side-editor-panel.cmside-dock-bottom.resizing-panel,
+.canvas-md-side-editor-panel.cmside-dock-bottom.resizing-panel * {
+  cursor: ns-resize;
+}
+
+/* Height presets for top/bottom docking (200..700, step 20) */
+.canvas-md-side-editor-panel.cmside-dock-top.cmside-has-custom-width,
+.canvas-md-side-editor-panel.cmside-dock-bottom.cmside-has-custom-width {
+  height: var(--cmside-panel-height, min(48%, 480px));
+  width: 100%;
+}
+.canvas-md-side-editor-panel.cmside-height-h200 { --cmside-panel-height: 200px; }
+.canvas-md-side-editor-panel.cmside-height-h220 { --cmside-panel-height: 220px; }
+.canvas-md-side-editor-panel.cmside-height-h240 { --cmside-panel-height: 240px; }
+.canvas-md-side-editor-panel.cmside-height-h260 { --cmside-panel-height: 260px; }
+.canvas-md-side-editor-panel.cmside-height-h280 { --cmside-panel-height: 280px; }
+.canvas-md-side-editor-panel.cmside-height-h300 { --cmside-panel-height: 300px; }
+.canvas-md-side-editor-panel.cmside-height-h320 { --cmside-panel-height: 320px; }
+.canvas-md-side-editor-panel.cmside-height-h340 { --cmside-panel-height: 340px; }
+.canvas-md-side-editor-panel.cmside-height-h360 { --cmside-panel-height: 360px; }
+.canvas-md-side-editor-panel.cmside-height-h380 { --cmside-panel-height: 380px; }
+.canvas-md-side-editor-panel.cmside-height-h400 { --cmside-panel-height: 400px; }
+.canvas-md-side-editor-panel.cmside-height-h420 { --cmside-panel-height: 420px; }
+.canvas-md-side-editor-panel.cmside-height-h440 { --cmside-panel-height: 440px; }
+.canvas-md-side-editor-panel.cmside-height-h460 { --cmside-panel-height: 460px; }
+.canvas-md-side-editor-panel.cmside-height-h480 { --cmside-panel-height: 480px; }
+.canvas-md-side-editor-panel.cmside-height-h500 { --cmside-panel-height: 500px; }
+.canvas-md-side-editor-panel.cmside-height-h520 { --cmside-panel-height: 520px; }
+.canvas-md-side-editor-panel.cmside-height-h540 { --cmside-panel-height: 540px; }
+.canvas-md-side-editor-panel.cmside-height-h560 { --cmside-panel-height: 560px; }
+.canvas-md-side-editor-panel.cmside-height-h580 { --cmside-panel-height: 580px; }
+.canvas-md-side-editor-panel.cmside-height-h600 { --cmside-panel-height: 600px; }
+.canvas-md-side-editor-panel.cmside-height-h620 { --cmside-panel-height: 620px; }
+.canvas-md-side-editor-panel.cmside-height-h640 { --cmside-panel-height: 640px; }
+.canvas-md-side-editor-panel.cmside-height-h660 { --cmside-panel-height: 660px; }
+.canvas-md-side-editor-panel.cmside-height-h680 { --cmside-panel-height: 680px; }
+.canvas-md-side-editor-panel.cmside-height-h700 { --cmside-panel-height: 700px; }

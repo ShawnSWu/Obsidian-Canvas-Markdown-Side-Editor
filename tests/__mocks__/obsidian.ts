@@ -158,6 +158,28 @@ export class Setting {
     this.containerEl.appendChild(inputEl);
     return this;
   }
+  addDropdown(cb: (dd: any) => void) {
+    const selectEl = document.createElement('select');
+    const dd = {
+      selectEl,
+      addOption: (value: string, label: string) => {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = label;
+        selectEl.appendChild(opt);
+        return dd;
+      },
+      addOptions: (options: Record<string, string>) => {
+        for (const [v, l] of Object.entries(options)) dd.addOption(v, l);
+        return dd;
+      },
+      setValue: (v: string) => { selectEl.value = v; return dd; },
+      onChange: (handler: (v: string) => void) => { selectEl.addEventListener('change', () => handler(selectEl.value)); return dd; },
+    };
+    cb(dd);
+    this.containerEl.appendChild(selectEl);
+    return this;
+  }
 }
 
 export class MarkdownRenderer {

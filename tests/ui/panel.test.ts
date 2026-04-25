@@ -210,6 +210,50 @@ describe('PanelController.setTitle', () => {
   });
 });
 
+describe('PanelController docking (issue #11)', () => {
+  it('applies cmside-dock-right by default', () => {
+    const { controller } = setup();
+    const refs = controller.create();
+    expect(refs.panelEl.classList.contains('cmside-dock-right')).toBe(true);
+  });
+
+  it('applies the configured dock class on create', () => {
+    const { controller } = setup({ dockPosition: 'left' });
+    const refs = controller.create();
+    expect(refs.panelEl.classList.contains('cmside-dock-left')).toBe(true);
+    expect(refs.panelEl.classList.contains('cmside-dock-right')).toBe(false);
+  });
+
+  it('uses width preset for horizontal docks and height preset for vertical docks', () => {
+    const { controller: leftCtl } = setup({ dockPosition: 'left', defaultPanelWidth: 480 });
+    const leftRefs = leftCtl.create();
+    expect(leftRefs.panelEl.classList.contains('cmside-width-w480')).toBe(true);
+
+    const { controller: topCtl } = setup({ dockPosition: 'top', defaultPanelHeight: 360 });
+    const topRefs = topCtl.create();
+    expect(topRefs.panelEl.classList.contains('cmside-height-h360')).toBe(true);
+    expect(topRefs.panelEl.className).not.toMatch(/cmside-width-w/);
+  });
+
+  it('setDockPosition swaps the dock class and re-applies the right size preset', () => {
+    const { controller } = setup({ dockPosition: 'right', defaultPanelWidth: 480, defaultPanelHeight: 360 });
+    const refs = controller.create();
+    expect(refs.panelEl.classList.contains('cmside-width-w480')).toBe(true);
+
+    controller.setDockPosition('bottom');
+    expect(refs.panelEl.classList.contains('cmside-dock-bottom')).toBe(true);
+    expect(refs.panelEl.classList.contains('cmside-dock-right')).toBe(false);
+    expect(refs.panelEl.classList.contains('cmside-width-w480')).toBe(false);
+    expect(refs.panelEl.classList.contains('cmside-height-h360')).toBe(true);
+
+    controller.setDockPosition('left');
+    expect(refs.panelEl.classList.contains('cmside-dock-left')).toBe(true);
+    expect(refs.panelEl.classList.contains('cmside-dock-bottom')).toBe(false);
+    expect(refs.panelEl.classList.contains('cmside-width-w480')).toBe(true);
+    expect(refs.panelEl.classList.contains('cmside-height-h360')).toBe(false);
+  });
+});
+
 describe('PanelController.destroy', () => {
   it('removes the panel from the container', () => {
     const { container, controller } = setup();

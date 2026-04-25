@@ -681,6 +681,14 @@ class CanvasMdSideEditorPlugin extends Plugin {
     try { this.panelController?.applyFontSizes?.(); } catch {}
   }
 
+  // Apply the persisted dock position to the open panel (issue #11).
+  public applyDockPosition(): void {
+    try {
+      const pos = this.settings.dockPosition ?? 'right';
+      this.panelController?.setDockPosition?.(pos);
+    } catch {}
+  }
+
   // Re-render the toolbar title using the currently open node. Called by the
   // settings tab when the user toggles "Show editable card title".
   public refreshCardTitle(): void {

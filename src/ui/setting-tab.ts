@@ -8,6 +8,7 @@ interface CanvasMdSideEditorPluginLike {
   setReadOnly?(v: boolean): void;
   applyFontSizes?(): void;
   refreshCardTitle?(): void;
+  applyDockPosition?(): void;
 }
 
 export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
@@ -25,8 +26,27 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
     containerEl.createEl('h2', { text: 'Canvas MD Side Editor' });
 
     new Setting(containerEl)
+      .setName('Dock position')
+      .setDesc('Which edge of the canvas the side panel docks against.')
+      .addDropdown((dd) => {
+        dd.addOption('right', 'Right');
+        dd.addOption('left', 'Left');
+        dd.addOption('top', 'Top');
+        dd.addOption('bottom', 'Bottom');
+        dd.setValue(this.plugin.settings.dockPosition ?? 'right');
+        dd.onChange(async (v: string) => {
+          const allowed = ['left', 'right', 'top', 'bottom'] as const;
+          if ((allowed as readonly string[]).includes(v)) {
+            this.plugin.settings.dockPosition = v as typeof allowed[number];
+            await this.plugin.saveData(this.plugin.settings);
+            this.plugin.applyDockPosition?.();
+          }
+        });
+      });
+
+    new Setting(containerEl)
       .setName('Default panel width')
-      .setDesc('Initial width of the side panel (in pixels). Dragging the panel edge will persist the new width.')
+      .setDesc('Initial width of the side panel (in pixels) when docked left or right. Dragging the panel edge persists the new width.')
       .addText((tb) => {
         tb.inputEl.type = 'number';
         tb.setValue(String(this.plugin.settings.defaultPanelWidth));
@@ -34,6 +54,21 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
           const n = Number(v);
           if (isFinite(n) && n > 240) {
             this.plugin.settings.defaultPanelWidth = Math.round(n);
+            await this.plugin.saveData(this.plugin.settings);
+          }
+        });
+      });
+
+    new Setting(containerEl)
+      .setName('Default panel height')
+      .setDesc('Initial height of the side panel (in pixels) when docked top or bottom. Dragging the panel edge persists the new height.')
+      .addText((tb) => {
+        tb.inputEl.type = 'number';
+        tb.setValue(String(this.plugin.settings.defaultPanelHeight));
+        tb.onChange(async (v) => {
+          const n = Number(v);
+          if (isFinite(n) && n > 160) {
+            this.plugin.settings.defaultPanelHeight = Math.round(n);
             await this.plugin.saveData(this.plugin.settings);
           }
         });
