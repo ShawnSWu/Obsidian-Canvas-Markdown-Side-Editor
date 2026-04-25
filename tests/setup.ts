@@ -1,5 +1,6 @@
 // Global test setup. happy-dom doesn't ship a few APIs that Obsidian/CodeMirror touch,
 // so we polyfill the absolute minimum here.
+export {};
 
 if (typeof (HTMLElement.prototype as any).createDiv !== 'function') {
   // Obsidian augments HTMLElement with these helpers; mirror just enough.
