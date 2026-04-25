@@ -33,9 +33,10 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
         dd.addOption('left', 'Left');
         dd.addOption('top', 'Top');
         dd.addOption('bottom', 'Bottom');
+        dd.addOption('floating', 'Floating');
         dd.setValue(this.plugin.settings.dockPosition ?? 'right');
         dd.onChange(async (v: string) => {
-          const allowed = ['left', 'right', 'top', 'bottom'] as const;
+          const allowed = ['left', 'right', 'top', 'bottom', 'floating'] as const;
           if ((allowed as readonly string[]).includes(v)) {
             this.plugin.settings.dockPosition = v as typeof allowed[number];
             await this.plugin.saveData(this.plugin.settings);

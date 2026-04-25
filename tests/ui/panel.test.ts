@@ -254,6 +254,145 @@ describe('PanelController docking (issue #11)', () => {
   });
 });
 
+describe('PanelController floating mode (issue #11)', () => {
+  function stubRect(el: Element, rect: { left: number; top: number; width: number; height: number }) {
+    (el as any).getBoundingClientRect = () => ({
+      ...rect,
+      right: rect.left + rect.width,
+      bottom: rect.top + rect.height,
+      x: rect.left,
+      y: rect.top,
+      toJSON: () => ({}),
+    });
+  }
+
+  it('applies cmside-dock-floating class and writes the CSS variables on create', () => {
+    const { container, controller } = setup({
+      dockPosition: 'floating',
+      floatingX: 100,
+      floatingY: 50,
+      floatingWidth: 520,
+      floatingHeight: 360,
+    });
+    stubRect(container, { left: 0, top: 0, width: 1200, height: 800 });
+    const refs = controller.create();
+    expect(refs.panelEl.classList.contains('cmside-dock-floating')).toBe(true);
+    expect(refs.panelEl.style.getPropertyValue('--cmside-float-x')).toBe('100px');
+    expect(refs.panelEl.style.getPropertyValue('--cmside-float-y')).toBe('50px');
+    expect(refs.panelEl.style.getPropertyValue('--cmside-float-w')).toBe('520px');
+    expect(refs.panelEl.style.getPropertyValue('--cmside-float-h')).toBe('360px');
+  });
+
+  it('renders a corner resizer element', () => {
+    const { controller } = setup({ dockPosition: 'floating' });
+    const refs = controller.create();
+    expect(refs.panelEl.querySelector('.cmside-corner-resizer')).toBeTruthy();
+  });
+
+  it('toolbar drag updates floating CSS variables and persists on pointerup', async () => {
+    const { container, controller, persistSettings, settings } = setup({
+      dockPosition: 'floating',
+      floatingX: 100,
+      floatingY: 100,
+      floatingWidth: 400,
+      floatingHeight: 300,
+    });
+    stubRect(container, { left: 0, top: 0, width: 1200, height: 800 });
+    const refs = controller.create();
+    stubRect(refs.panelEl, { left: 100, top: 100, width: 400, height: 300 });
+
+    const toolbar = refs.panelEl.querySelector('.cmside-toolbar') as HTMLElement;
+    const titleEl = refs.panelEl.querySelector('.cmside-title') as HTMLElement;
+    // Dispatch pointerdown on the title element (NOT inside .cmside-actions),
+    // which qualifies as a valid drag origin.
+    titleEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 200, clientY: 150 }));
+
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 250, clientY: 220 }));
+    expect(refs.panelEl.style.getPropertyValue('--cmside-float-x')).toBe('150px');
+    expect(refs.panelEl.style.getPropertyValue('--cmside-float-y')).toBe('170px');
+
+    // Update stub so pointerup reads the post-move bounding box for persistence.
+    stubRect(refs.panelEl, { left: 150, top: 170, width: 400, height: 300 });
+    window.dispatchEvent(new PointerEvent('pointerup'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(settings.floatingX).toBe(150);
+    expect(settings.floatingY).toBe(170);
+    expect(persistSettings).toHaveBeenCalled();
+
+    // Ensure toolbar variable name was used; suppress unused-var lint
+    expect(toolbar).toBe(toolbar);
+  });
+
+  it('clicks on action buttons do not start a drag', async () => {
+    const { container, controller, persistSettings } = setup({ dockPosition: 'floating', editorFontSize: 14, previewFontSize: 14 });
+    stubRect(container, { left: 0, top: 0, width: 1200, height: 800 });
+    const refs = controller.create();
+    stubRect(refs.panelEl, { left: 100, top: 100, width: 400, height: 300 });
+    persistSettings.mockClear();
+
+    refs.toggleBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 200, clientY: 150 }));
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 400, clientY: 400 }));
+    window.dispatchEvent(new PointerEvent('pointerup'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(persistSettings).not.toHaveBeenCalled();
+    // CSS vars unchanged from initial values applied on create
+    expect(refs.panelEl.style.getPropertyValue('--cmside-float-x')).toBe('80px');
+  });
+
+  it('drag is constrained so the panel cannot leave the viewport entirely', () => {
+    const { container, controller } = setup({ dockPosition: 'floating', floatingX: 100, floatingY: 100, floatingWidth: 400, floatingHeight: 300 });
+    stubRect(container, { left: 0, top: 0, width: 1000, height: 600 });
+    const refs = controller.create();
+    stubRect(refs.panelEl, { left: 100, top: 100, width: 400, height: 300 });
+    const titleEl = refs.panelEl.querySelector('.cmside-title') as HTMLElement;
+
+    titleEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 200, clientY: 150 }));
+    // Drag far past the right/bottom edge — should clamp to keep panel
+    // partially inside (FLOATING_MARGIN = 80 inside container).
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 9999, clientY: 9999 }));
+    const xPx = refs.panelEl.style.getPropertyValue('--cmside-float-x');
+    const yPx = refs.panelEl.style.getPropertyValue('--cmside-float-y');
+    expect(parseInt(xPx, 10)).toBe(1000 - 80); // container.width - FLOATING_MARGIN
+    expect(parseInt(yPx, 10)).toBe(600 - 80);  // container.height - FLOATING_MARGIN
+    window.dispatchEvent(new PointerEvent('pointerup'));
+  });
+
+  it('corner resizer updates W and H CSS vars and persists on pointerup', async () => {
+    const { container, controller, persistSettings, settings } = setup({
+      dockPosition: 'floating',
+      floatingX: 100, floatingY: 100, floatingWidth: 400, floatingHeight: 300,
+    });
+    stubRect(container, { left: 0, top: 0, width: 1200, height: 800 });
+    const refs = controller.create();
+    stubRect(refs.panelEl, { left: 100, top: 100, width: 400, height: 300 });
+    const corner = refs.panelEl.querySelector('.cmside-corner-resizer') as HTMLElement;
+
+    corner.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 500, clientY: 400 }));
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 580, clientY: 460 }));
+    expect(refs.panelEl.style.getPropertyValue('--cmside-float-w')).toBe('480px');
+    expect(refs.panelEl.style.getPropertyValue('--cmside-float-h')).toBe('360px');
+
+    stubRect(refs.panelEl, { left: 100, top: 100, width: 480, height: 360 });
+    window.dispatchEvent(new PointerEvent('pointerup'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(settings.floatingWidth).toBe(480);
+    expect(settings.floatingHeight).toBe(360);
+    expect(persistSettings).toHaveBeenCalled();
+  });
+
+  it('drag handler is a no-op when the panel is not in floating mode', () => {
+    const { container, controller, persistSettings } = setup({ dockPosition: 'right', editorFontSize: 14, previewFontSize: 14 });
+    stubRect(container, { left: 0, top: 0, width: 1200, height: 800 });
+    const refs = controller.create();
+    persistSettings.mockClear();
+    const toolbar = refs.panelEl.querySelector('.cmside-toolbar') as HTMLElement;
+    toolbar.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }));
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 300, clientY: 300 }));
+    window.dispatchEvent(new PointerEvent('pointerup'));
+    expect(persistSettings).not.toHaveBeenCalled();
+  });
+});
+
 describe('PanelController.destroy', () => {
   it('removes the panel from the container', () => {
     const { container, controller } = setup();

@@ -389,3 +389,78 @@ If your plugin does not need CSS, delete this file.
 .canvas-md-side-editor-panel.cmside-height-h660 { --cmside-panel-height: 660px; }
 .canvas-md-side-editor-panel.cmside-height-h680 { --cmside-panel-height: 680px; }
 .canvas-md-side-editor-panel.cmside-height-h700 { --cmside-panel-height: 700px; }
+
+/* === Floating mode (issue #11) ===
+ * Free-position panel using CSS variables set by JS. Drag handle is the
+ * toolbar; resize handle is a tiny bottom-right corner element.
+ */
+.canvas-md-side-editor-panel.cmside-dock-floating {
+  top: var(--cmside-float-y, 80px);
+  left: var(--cmside-float-x, 80px);
+  right: auto;
+  bottom: auto;
+  width: var(--cmside-float-w, 480px);
+  height: var(--cmside-float-h, 400px);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-l, 0 8px 24px rgba(0, 0, 0, 0.2));
+  /* No slide-in animation; appear in place */
+  transform: none;
+  transition: none;
+}
+.canvas-md-side-editor-panel.cmside-dock-floating.open {
+  transform: none;
+}
+/* Hide the edge resizer in floating mode (no edge to attach to) */
+.canvas-md-side-editor-panel.cmside-dock-floating .cmside-panel-resizer {
+  display: none;
+}
+/* Toolbar serves as drag handle */
+.canvas-md-side-editor-panel.cmside-dock-floating .cmside-toolbar {
+  cursor: grab;
+}
+.canvas-md-side-editor-panel.cmside-dock-floating.cmside-floating-dragging .cmside-toolbar,
+.canvas-md-side-editor-panel.cmside-dock-floating.cmside-floating-dragging,
+.canvas-md-side-editor-panel.cmside-dock-floating.cmside-floating-dragging * {
+  cursor: grabbing;
+  user-select: none;
+}
+/* The action buttons and the editable title input keep their normal cursor */
+.canvas-md-side-editor-panel.cmside-dock-floating .cmside-toolbar .cmside-actions,
+.canvas-md-side-editor-panel.cmside-dock-floating .cmside-toolbar .cmside-actions * {
+  cursor: pointer;
+}
+.canvas-md-side-editor-panel.cmside-dock-floating .cmside-title-input {
+  cursor: text;
+}
+
+/* Bottom-right corner resize handle. Only visible when floating. */
+.canvas-md-side-editor-panel .cmside-corner-resizer {
+  display: none;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  cursor: se-resize;
+  background: linear-gradient(
+    135deg,
+    transparent 50%,
+    var(--background-modifier-border) 50%,
+    var(--background-modifier-border) 60%,
+    transparent 60%,
+    transparent 70%,
+    var(--background-modifier-border) 70%,
+    var(--background-modifier-border) 80%,
+    transparent 80%
+  );
+  z-index: 3;
+}
+.canvas-md-side-editor-panel.cmside-dock-floating .cmside-corner-resizer {
+  display: block;
+}
+.canvas-md-side-editor-panel.cmside-dock-floating.cmside-floating-resizing,
+.canvas-md-side-editor-panel.cmside-dock-floating.cmside-floating-resizing * {
+  cursor: se-resize;
+  user-select: none;
+}

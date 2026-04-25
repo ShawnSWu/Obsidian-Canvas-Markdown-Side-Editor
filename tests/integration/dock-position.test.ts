@@ -95,4 +95,48 @@ describe('issue #11 — dock position live refresh', () => {
     expect(panel.classList.contains('cmside-height-h360')).toBe(true);
     expect(panel.className).not.toMatch(/cmside-width-w/);
   });
+
+  it('opening with dockPosition=floating applies floating CSS variables', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    plugin.settings.dockPosition = 'floating';
+    plugin.settings.floatingX = 120;
+    plugin.settings.floatingY = 60;
+    plugin.settings.floatingWidth = 500;
+    plugin.settings.floatingHeight = 380;
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = makeCanvasView(container);
+    await (plugin as any).attachToCanvas(view);
+    await (plugin as any).openEditorForNode(view, { id: 'n1', type: 'text', text: 'x' } as CanvasNode);
+
+    const panel = (plugin as any).panelEl as HTMLElement;
+    expect(panel.classList.contains('cmside-dock-floating')).toBe(true);
+    expect(panel.style.getPropertyValue('--cmside-float-x')).toBe('120px');
+    expect(panel.style.getPropertyValue('--cmside-float-y')).toBe('60px');
+    expect(panel.style.getPropertyValue('--cmside-float-w')).toBe('500px');
+    expect(panel.style.getPropertyValue('--cmside-float-h')).toBe('380px');
+  });
+
+  it('switching to floating via applyDockPosition removes width preset and sets vars', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    plugin.settings.dockPosition = 'right';
+    plugin.settings.defaultPanelWidth = 480;
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = makeCanvasView(container);
+    await (plugin as any).attachToCanvas(view);
+    await (plugin as any).openEditorForNode(view, { id: 'n1', type: 'text', text: 'x' } as CanvasNode);
+    const panel = (plugin as any).panelEl as HTMLElement;
+    expect(panel.classList.contains('cmside-width-w480')).toBe(true);
+
+    plugin.settings.dockPosition = 'floating';
+    plugin.applyDockPosition();
+    expect(panel.classList.contains('cmside-dock-floating')).toBe(true);
+    expect(panel.classList.contains('cmside-width-w480')).toBe(false);
+    expect(panel.style.getPropertyValue('--cmside-float-x')).toBeTruthy();
+  });
 });
