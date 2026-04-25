@@ -76,7 +76,7 @@ describe('issue #8: panel reopens after switching views', () => {
     document.body.appendChild(oldContainer);
     const oldView = makeCanvasView(oldContainer);
 
-    (plugin as any).attachToCanvas(oldView);
+    await (plugin as any).attachToCanvas(oldView);
     await (plugin as any).openEditorForNode(oldView, makeTextNode('node-1', 'hello'));
 
     // Sanity: panel exists and is mounted under the original container.
@@ -97,7 +97,7 @@ describe('issue #8: panel reopens after switching views', () => {
     const newView = makeCanvasView(newContainer);
 
     // attach() in onload would call this on active-leaf-change.
-    (plugin as any).attachToCanvas(newView);
+    await (plugin as any).attachToCanvas(newView);
 
     // --- 4. User clicks a card again -> open panel ---
     await (plugin as any).openEditorForNode(newView, makeTextNode('node-1', 'hello again'));
@@ -116,7 +116,7 @@ describe('issue #8: panel reopens after switching views', () => {
     const oldContainer = document.createElement('div');
     document.body.appendChild(oldContainer);
     const oldView = makeCanvasView(oldContainer);
-    (plugin as any).attachToCanvas(oldView);
+    await (plugin as any).attachToCanvas(oldView);
     await (plugin as any).openEditorForNode(oldView, makeTextNode('node-A', 'A'));
 
     // Leave canvas
@@ -126,7 +126,7 @@ describe('issue #8: panel reopens after switching views', () => {
     const newContainer = document.createElement('div');
     document.body.appendChild(newContainer);
     const newView = makeCanvasView(newContainer);
-    (plugin as any).attachToCanvas(newView);
+    await (plugin as any).attachToCanvas(newView);
 
     // The plugin must NOT still hold a reference to a detached panel after
     // re-attach; it should either be cleared or be re-created under the new

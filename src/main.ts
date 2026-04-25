@@ -46,6 +46,11 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private panelController: PanelController | null = null;
   public settings!: CanvasMdSideEditorSettings;
 
+  // Last Canvas view we attached to. Used so that when the user navigates to a
+  // new Canvas (or the leaf rebuilds the view), we can save unsaved edits to
+  // the previous canvas before tearing down a now-stale panel. Fixes issue #8.
+  private lastCanvasView: CanvasLikeView | null = null;
+
   // Zoom-to-selection integration
   private canvasPatchedRef: CanvasLike | null = null;
   private originalZoomToSelection: ((...args: unknown[]) => unknown) | null = null;
@@ -81,20 +86,22 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
     // Styles are now provided by styles.css bundled with the plugin
     // Track canvas changes
-    const attach = () => {
+    const attach = async () => {
       const view = this.getActiveCanvasView();
-      try {
-        console.debug('[CMSE-DIAG] leaf-change', {
-          onCanvas: !!view,
-          hasPanel: !!this.panelEl,
-          panelConnected: this.panelEl?.isConnected ?? null,
-          panelParentIsViewContainer: view ? this.panelEl?.parentElement === view.containerEl : null,
-        });
-      } catch {}
-      if (view) this.attachToCanvas(view);
+      if (view) {
+        await this.attachToCanvas(view);
+      } else if (this.panelEl) {
+        // Left the Canvas: persist any unsaved edits to the previous canvas,
+        // then drop panel state so a fresh one is built when we return.
+        const prev = this.lastCanvasView;
+        try { if (prev) await this.saveCurrentEdits(prev); } catch {}
+        this.detachFromCanvas();
+        this.teardownPanel();
+        this.lastCanvasView = null;
+      }
     };
     // Initial attach if already on a Canvas
-    attach();
+    void attach();
 
     // Register commands
     registerCommands(this);
@@ -220,9 +227,22 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
   
 
-  private attachToCanvas(view: CanvasLikeView) {
+  private async attachToCanvas(view: CanvasLikeView) {
     this.detachFromCanvas();
+    // If the existing panel was attached to a destroyed/different container
+    // (e.g. user left and returned to a Canvas leaf that Obsidian rebuilt),
+    // save any pending edits to the previous canvas and drop the stale panel
+    // so ensurePanel() can rebuild it under the new container. Fixes issue #8.
     const container: HTMLElement | undefined = view?.containerEl;
+    const stale = !!this.panelEl && (!this.panelEl.isConnected || (!!container && this.panelEl.parentElement !== container));
+    if (stale) {
+      const prev = this.lastCanvasView;
+      if (prev && prev !== view) {
+        try { await this.saveCurrentEdits(prev); } catch {}
+      }
+      this.teardownPanel();
+    }
+    this.lastCanvasView = view;
     if (!container) return;
     const contentEl: HTMLElement | undefined = view?.contentEl;
     const innerEl: HTMLElement | null = container.querySelector(
@@ -508,15 +528,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
   
 
   private ensurePanel(view: any) {
-    if (this.panelEl) {
-      try {
-        console.debug('[CMSE-DIAG] ensurePanel early-return', {
-          connected: this.panelEl.isConnected,
-          parentIsViewContainer: this.panelEl.parentElement === view.containerEl,
-        });
-      } catch {}
-      return;
-    }
+    if (this.panelEl) return;
     const container: HTMLElement = view.containerEl;
     // Ensure container is positioned so the absolute panel anchors correctly
     try {
@@ -572,6 +584,10 @@ class CanvasMdSideEditorPlugin extends Plugin {
   }
 
   private async openEditorForNode(view: any, node: CanvasNode) {
+    // Safety net: drop any orphaned panel reference before (re)building.
+    if (this.panelEl && !this.panelEl.isConnected) {
+      this.teardownPanel();
+    }
     this.ensurePanel(view);
     if (!this.panelEl || !this.editorRootEl) return;
     this.currentNodeId = node.id;
