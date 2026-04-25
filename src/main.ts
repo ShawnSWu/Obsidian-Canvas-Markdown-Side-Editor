@@ -83,6 +83,14 @@ class CanvasMdSideEditorPlugin extends Plugin {
     // Track canvas changes
     const attach = () => {
       const view = this.getActiveCanvasView();
+      try {
+        console.debug('[CMSE-DIAG] leaf-change', {
+          onCanvas: !!view,
+          hasPanel: !!this.panelEl,
+          panelConnected: this.panelEl?.isConnected ?? null,
+          panelParentIsViewContainer: view ? this.panelEl?.parentElement === view.containerEl : null,
+        });
+      } catch {}
       if (view) this.attachToCanvas(view);
     };
     // Initial attach if already on a Canvas
@@ -500,7 +508,15 @@ class CanvasMdSideEditorPlugin extends Plugin {
   
 
   private ensurePanel(view: any) {
-    if (this.panelEl) return;
+    if (this.panelEl) {
+      try {
+        console.debug('[CMSE-DIAG] ensurePanel early-return', {
+          connected: this.panelEl.isConnected,
+          parentIsViewContainer: this.panelEl.parentElement === view.containerEl,
+        });
+      } catch {}
+      return;
+    }
     const container: HTMLElement = view.containerEl;
     // Ensure container is positioned so the absolute panel anchors correctly
     try {
