@@ -1,7 +1,8 @@
 import { EditorView } from '@codemirror/view';
-import { Plugin, TFile, WorkspaceLeaf, addIcon, setIcon } from 'obsidian';
+import { Notice, Plugin, TFile, WorkspaceLeaf, addIcon, setIcon } from 'obsidian';
 import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS } from './settings';
 import type { CanvasNode, CanvasData, CanvasLikeView, CanvasLike } from './types';
+import { buildRenamePath, extractTitleFromText, patchFirstLineWithTitle } from './utils/card-title';
 import { iconOneCol, iconTwoCols } from './ui/icons';
 import { CanvasMdSideEditorSettingTab } from './ui/setting-tab';
 import { findNodeIdAtPoint } from './utils/canvas';
@@ -46,6 +47,11 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private panelController: PanelController | null = null;
   public settings!: CanvasMdSideEditorSettings;
 
+  // Last Canvas view we attached to. Used so that when the user navigates to a
+  // new Canvas (or the leaf rebuilds the view), we can save unsaved edits to
+  // the previous canvas before tearing down a now-stale panel. Fixes issue #8.
+  private lastCanvasView: CanvasLikeView | null = null;
+
   // Zoom-to-selection integration
   private canvasPatchedRef: CanvasLike | null = null;
   private originalZoomToSelection: ((...args: unknown[]) => unknown) | null = null;
@@ -81,12 +87,22 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
     // Styles are now provided by styles.css bundled with the plugin
     // Track canvas changes
-    const attach = () => {
+    const attach = async () => {
       const view = this.getActiveCanvasView();
-      if (view) this.attachToCanvas(view);
+      if (view) {
+        await this.attachToCanvas(view);
+      } else if (this.panelEl) {
+        // Left the Canvas: persist any unsaved edits to the previous canvas,
+        // then drop panel state so a fresh one is built when we return.
+        const prev = this.lastCanvasView;
+        try { if (prev) await this.saveCurrentEdits(prev); } catch {}
+        this.detachFromCanvas();
+        this.teardownPanel();
+        this.lastCanvasView = null;
+      }
     };
     // Initial attach if already on a Canvas
-    attach();
+    void attach();
 
     // Register commands
     registerCommands(this);
@@ -212,9 +228,22 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
   
 
-  private attachToCanvas(view: CanvasLikeView) {
+  private async attachToCanvas(view: CanvasLikeView) {
     this.detachFromCanvas();
+    // If the existing panel was attached to a destroyed/different container
+    // (e.g. user left and returned to a Canvas leaf that Obsidian rebuilt),
+    // save any pending edits to the previous canvas and drop the stale panel
+    // so ensurePanel() can rebuild it under the new container. Fixes issue #8.
     const container: HTMLElement | undefined = view?.containerEl;
+    const stale = !!this.panelEl && (!this.panelEl.isConnected || (!!container && this.panelEl.parentElement !== container));
+    if (stale) {
+      const prev = this.lastCanvasView;
+      if (prev && prev !== view) {
+        try { await this.saveCurrentEdits(prev); } catch {}
+      }
+      this.teardownPanel();
+    }
+    this.lastCanvasView = view;
     if (!container) return;
     const contentEl: HTMLElement | undefined = view?.contentEl;
     const innerEl: HTMLElement | null = container.querySelector(
@@ -556,6 +585,10 @@ class CanvasMdSideEditorPlugin extends Plugin {
   }
 
   private async openEditorForNode(view: any, node: CanvasNode) {
+    // Safety net: drop any orphaned panel reference before (re)building.
+    if (this.panelEl && !this.panelEl.isConnected) {
+      this.teardownPanel();
+    }
     this.ensurePanel(view);
     if (!this.panelEl || !this.editorRootEl) return;
     this.currentNodeId = node.id;
@@ -607,6 +640,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
     // Initial render
     await this.renderPreview(initial);
 
+    // Render the toolbar title (static or editable depending on settings).
+    this.applyCardTitle(view, node, initial);
+
     // Slide in
     this.panelEl.classList.add('open');
     // Re-render shortly after opening to account for layout/transition timing
@@ -643,6 +679,81 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
   public applyFontSizes() {
     try { this.panelController?.applyFontSizes?.(); } catch {}
+  }
+
+  // Apply the persisted dock position to the open panel (issue #11).
+  public applyDockPosition(): void {
+    try {
+      const pos = this.settings.dockPosition ?? 'right';
+      this.panelController?.setDockPosition?.(pos);
+    } catch {}
+  }
+
+  // Re-render the toolbar title using the currently open node. Called by the
+  // settings tab when the user toggles "Show editable card title".
+  public refreshCardTitle(): void {
+    if (!this.panelController || !this.currentNode || !this.lastCanvasView) return;
+    const initial = this.cmView?.state.doc.toString() ?? '';
+    this.applyCardTitle(this.lastCanvasView, this.currentNode, initial);
+  }
+
+  private applyCardTitle(view: CanvasLikeView, node: CanvasNode, currentContent: string): void {
+    if (!this.panelController) return;
+    if (!this.settings.showCardTitle) {
+      this.panelController.setTitle('Canvas MD Side Editor');
+      return;
+    }
+    if (node.type === 'file' && typeof node.file === 'string') {
+      const file = this.resolveVaultFile(node.file);
+      const basename = file?.basename ?? '';
+      this.panelController.setTitle(basename, (newName) => {
+        if (file) void this.commitFileRename(file, newName, node);
+      });
+      return;
+    }
+    if (node.type === 'text') {
+      const initialTitle = extractTitleFromText(currentContent);
+      this.panelController.setTitle(initialTitle, (newTitle) => {
+        void this.commitTextTitle(view, newTitle);
+      });
+      return;
+    }
+    this.panelController.setTitle('Canvas MD Side Editor');
+  }
+
+  private async commitFileRename(file: TFile, newBasename: string, node: CanvasNode): Promise<void> {
+    const plan = buildRenamePath(file.path, newBasename);
+    if (!plan.valid) {
+      new Notice(`Cannot rename: ${plan.reason}`);
+      this.refreshCardTitle();
+      return;
+    }
+    if (plan.path === file.path) return;
+    if (this.app.vault.getAbstractFileByPath(plan.path)) {
+      new Notice('A file with that name already exists');
+      this.refreshCardTitle();
+      return;
+    }
+    try {
+      await this.app.vault.rename(file, plan.path);
+      // Keep our in-memory references in sync so subsequent saves go to the
+      // new path rather than the now-defunct one.
+      if (typeof node.file === 'string') node.file = plan.path;
+      this.currentSourcePath = plan.path;
+      this.previewHelper?.setSourcePath(plan.path);
+    } catch {
+      new Notice('Rename failed');
+      this.refreshCardTitle();
+    }
+  }
+
+  private async commitTextTitle(view: CanvasLikeView, newTitle: string): Promise<void> {
+    if (!this.cmView) return;
+    const doc = this.cmView.state.doc.toString();
+    const patched = patchFirstLineWithTitle(doc, newTitle);
+    if (patched === doc) return;
+    this.cmView.dispatch({ changes: { from: 0, to: doc.length, insert: patched } });
+    await this.saveCurrentEdits(view);
   }
 
   private teardownPanel() {

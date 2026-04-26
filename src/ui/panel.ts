@@ -1,4 +1,13 @@
-import type { CanvasMdSideEditorSettings } from '../settings';
+import type { CanvasMdSideEditorSettings, DockPosition } from '../settings';
+
+const DOCK_CLASSES: Record<DockPosition, string> = {
+  left: 'cmside-dock-left',
+  right: 'cmside-dock-right',
+  top: 'cmside-dock-top',
+  bottom: 'cmside-dock-bottom',
+  floating: 'cmside-dock-floating',
+};
+const ALL_DOCK_CLASSES = Object.values(DOCK_CLASSES);
 
 export type PanelRefs = {
   panelEl: HTMLElement;
@@ -14,16 +23,20 @@ export class PanelController {
   private persistSettings: (s: CanvasMdSideEditorSettings) => Promise<void> | void;
   private previewCollapsed: boolean;
   private readOnly: boolean = false;
+  private dockPosition: DockPosition = 'right';
 
   private panelEl: HTMLElement | null = null;
   private editorRootEl: HTMLElement | null = null;
   private previewRootEl: HTMLElement | null = null;
   private toggleBtn!: HTMLButtonElement;
   private closeBtn!: HTMLButtonElement;
+  private titleEl!: HTMLElement;
   private dividerEl!: HTMLElement;
   private editorPaneEl!: HTMLElement;
   private previewPaneEl!: HTMLElement;
   private panelResizerEl!: HTMLElement;
+  private cornerResizerEl!: HTMLElement;
+  private toolbarEl!: HTMLElement;
   private detachFns: Array<() => void> = [];
   private containerPosPatched = false;
   private editorFlexBeforeCollapse: string | null = null;
@@ -56,18 +69,12 @@ export class PanelController {
     } catch {}
 
     const panel = this.container.createDiv({ cls: 'canvas-md-side-editor-panel' });
-    // Apply default width from settings
-    try {
-      const w = this.getSettings()?.defaultPanelWidth;
-      if (typeof w === 'number' && w > 0) {
-        panel.classList.add('cmside-has-custom-width');
-        const cls = this.mapToPanelWidthClass(Math.round(w));
-        if (cls) {
-          panel.classList.add(cls);
-          this.currentPanelWidthClass = cls;
-        }
-      }
-    } catch {}
+    // Apply dock position class based on settings (issue #11). Size and
+    // floating-position rules are applied lazily inside applyDockSizing()
+    // because that path is also reused by setDockPosition().
+    const initialDock = this.getSettings()?.dockPosition ?? 'right';
+    this.dockPosition = initialDock;
+    panel.classList.add(DOCK_CLASSES[initialDock]);
 
     const toolbar = panel.createDiv({ cls: 'cmside-toolbar' });
     const titleEl = toolbar.createDiv({ cls: 'cmside-title' });
@@ -92,16 +99,22 @@ export class PanelController {
     // Panel width resizer (left edge)
     const panelResizer = panel.createDiv({ cls: 'cmside-panel-resizer', title: 'Drag to resize panel' });
 
+    // Bottom-right corner resize handle, only visible in floating mode (issue #11).
+    const cornerResizer = panel.createDiv({ cls: 'cmside-corner-resizer', title: 'Drag to resize' });
+
     // Store refs
     this.panelEl = panel;
     this.editorRootEl = editorRoot;
     this.previewRootEl = previewRoot;
     this.toggleBtn = toggleBtn;
     this.closeBtn = closeBtn;
+    this.titleEl = titleEl;
     this.dividerEl = divider;
     this.editorPaneEl = editorPane;
     this.previewPaneEl = previewPane;
     this.panelResizerEl = panelResizer;
+    this.cornerResizerEl = cornerResizer;
+    this.toolbarEl = toolbar;
 
     // Initialize preview collapsed UI
     if (this.previewCollapsed) panel.classList.add('preview-collapsed');
@@ -138,10 +151,15 @@ export class PanelController {
       }
     } catch {}
 
+    // Apply size / floating-position presets matching the current dock.
+    this.applyDockSizing();
+
     // Listeners
     this.setupPanelResize(panel);
     this.setupSplitResize(panel, editorPane, previewPane, divider);
     this.setupScrollGuards(panel);
+    this.setupFloatingDrag(panel);
+    this.setupFloatingResize(panel);
 
     return {
       panelEl: panel,
@@ -202,34 +220,151 @@ export class PanelController {
     } catch {}
   }
 
+  // Render the toolbar title. When `onCommit` is provided the title is shown
+  // as an editable <input>; the callback fires on Enter or blur, but only if
+  // the value actually changed (Escape reverts and skips the callback).
+  setTitle(text: string, onCommit?: (newText: string) => void): void {
+    if (!this.titleEl) return;
+    this.titleEl.empty();
+    this.titleEl.classList.toggle('cmside-title-editable', !!onCommit);
+    if (!onCommit) {
+      this.titleEl.setText(text);
+      return;
+    }
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'cmside-title-input';
+    input.value = text;
+    input.spellcheck = false;
+
+    let committed = false;
+    let original = text;
+    const commit = () => {
+      if (committed) return;
+      committed = true;
+      const newText = input.value;
+      if (newText !== original) {
+        try { onCommit(newText); } catch {}
+      }
+    };
+    input.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        input.blur();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        input.value = original;
+        committed = true;
+        input.blur();
+      }
+    });
+    input.addEventListener('blur', commit);
+
+    this.titleEl.appendChild(input);
+  }
+
+  // Swap the dock position class. The drag axis used by the panel resizer is
+  // re-derived from this on each drag, so no resizer rebuild is needed.
+  setDockPosition(pos: DockPosition): void {
+    this.dockPosition = pos;
+    if (!this.panelEl) return;
+    for (const c of ALL_DOCK_CLASSES) this.panelEl.classList.remove(c);
+    this.panelEl.classList.add(DOCK_CLASSES[pos]);
+    this.applyDockSizing();
+  }
+
+  // Apply the size class (width or height preset) and, when floating, the
+  // position / size CSS variables. Called from create() and setDockPosition().
+  private applyDockSizing(): void {
+    if (!this.panelEl) return;
+    if (this.currentPanelWidthClass) {
+      this.panelEl.classList.remove(this.currentPanelWidthClass);
+      this.currentPanelWidthClass = null;
+    }
+    const pos = this.dockPosition;
+    const s = this.getSettings();
+    if (pos === 'floating') {
+      // Floating uses freeform CSS variables for x/y/w/h rather than preset
+      // classes since the values are arbitrary px coordinates.
+      const x = Math.round(s?.floatingX ?? 80);
+      const y = Math.round(s?.floatingY ?? 80);
+      const w = Math.round(s?.floatingWidth ?? 480);
+      const h = Math.round(s?.floatingHeight ?? 400);
+      this.panelEl.style.setProperty('--cmside-float-x', `${x}px`);
+      this.panelEl.style.setProperty('--cmside-float-y', `${y}px`);
+      this.panelEl.style.setProperty('--cmside-float-w', `${w}px`);
+      this.panelEl.style.setProperty('--cmside-float-h', `${h}px`);
+      return;
+    }
+    try {
+      const isHorizontal = pos === 'left' || pos === 'right';
+      const dim = isHorizontal ? s?.defaultPanelWidth : s?.defaultPanelHeight;
+      if (typeof dim === 'number' && dim > 0) {
+        this.panelEl.classList.add('cmside-has-custom-width');
+        const cls = isHorizontal
+          ? this.mapToPanelWidthClass(Math.round(dim))
+          : this.mapToPanelHeightClass(Math.round(dim));
+        if (cls) {
+          this.panelEl.classList.add(cls);
+          this.currentPanelWidthClass = cls;
+        }
+      }
+    } catch {}
+  }
+
   // Internal wiring
   private setupPanelResize(panel: HTMLElement) {
     const onPanelResizerPointerDown = (ev: PointerEvent) => {
       ev.preventDefault();
-      const startX = ev.clientX;
-      const startWidth = panel.getBoundingClientRect().width;
+      // Dock direction decides which axis the user is dragging along, and
+      // whether the panel grows/shrinks with positive or negative delta.
+      const pos = this.dockPosition;
+      const isHorizontal = pos === 'left' || pos === 'right';
+      const startCoord = isHorizontal ? ev.clientX : ev.clientY;
+      const rect = panel.getBoundingClientRect();
+      const startSize = isHorizontal ? rect.width : rect.height;
       const containerRect = this.container.getBoundingClientRect();
-      const minWidth = 300; // px (align with preset classes)
-      const maxWidth = Math.max(minWidth, Math.min(containerRect.width - 120, containerRect.width));
+      const containerSize = isHorizontal ? containerRect.width : containerRect.height;
+      const minSize = isHorizontal ? 300 : 200; // px (align with preset classes)
+      const maxSize = Math.max(minSize, Math.min(containerSize - 120, containerSize));
+      // Resizer sits on the inner edge of the panel:
+      //   right dock  → resizer on left edge  → drag right shrinks (delta>0 → -)
+      //   left  dock  → resizer on right edge → drag right grows   (delta>0 → +)
+      //   bottom dock → resizer on top edge   → drag down shrinks  (delta>0 → -)
+      //   top    dock → resizer on bottom edge → drag down grows   (delta>0 → +)
+      const sign = (pos === 'right' || pos === 'bottom') ? -1 : 1;
       panel.classList.add('resizing-panel');
       try { (ev.target as Element)?.setPointerCapture?.(ev.pointerId); } catch {}
 
       const onMove = (mv: PointerEvent) => {
-        const delta = mv.clientX - startX; // dragging right -> delta>0 -> width decreases
-        const newW = Math.min(maxWidth, Math.max(minWidth, startWidth - delta));
-        // Apply nearest preset class live while dragging
+        const cur = isHorizontal ? mv.clientX : mv.clientY;
+        const delta = (cur - startCoord) * sign;
+        const newSize = Math.min(maxSize, Math.max(minSize, startSize + delta));
         panel.classList.add('cmside-has-custom-width');
-        const cls = this.mapToPanelWidthClass(Math.round(newW));
+        const cls = isHorizontal
+          ? this.mapToPanelWidthClass(Math.round(newSize))
+          : this.mapToPanelHeightClass(Math.round(newSize));
         if (cls && this.currentPanelWidthClass !== cls) {
           if (this.currentPanelWidthClass) panel.classList.remove(this.currentPanelWidthClass);
           panel.classList.add(cls);
           this.currentPanelWidthClass = cls;
         }
       };
-      const onUp = () => {
+      const onUp = async () => {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         panel.classList.remove('resizing-panel');
+        // Persist the new size to the dimension matching the current dock.
+        try {
+          const s = this.getSettings();
+          const r = panel.getBoundingClientRect();
+          const newDim = isHorizontal ? r.width : r.height;
+          if (newDim && isFinite(newDim) && s) {
+            if (isHorizontal) s.defaultPanelWidth = Math.round(newDim);
+            else s.defaultPanelHeight = Math.round(newDim);
+            await this.persistSettings(s);
+          }
+        } catch {}
       };
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp, { once: true });
@@ -308,11 +443,123 @@ export class PanelController {
     this.detachFns.push(() => panel.removeEventListener('touchmove', stopTouchMoveBubble, false));
   }
 
+  // Floating-mode drag (issue #11). The toolbar acts as the drag handle, but
+  // we ignore drags that started on the title input or one of the action
+  // buttons so those keep their normal interactivity.
+  private setupFloatingDrag(panel: HTMLElement) {
+    const KEEP_INTERACTIVE = 'input, button, .cmside-actions';
+    const FLOATING_MARGIN = 80; // px — keep at least this much inside viewport
+    const onPointerDown = (ev: PointerEvent) => {
+      if (this.dockPosition !== 'floating') return;
+      if (ev.button !== 0) return;
+      const target = ev.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest(KEEP_INTERACTIVE)) return;
+
+      ev.preventDefault();
+      const rect = panel.getBoundingClientRect();
+      const containerRect = this.container.getBoundingClientRect();
+      const startX = ev.clientX;
+      const startY = ev.clientY;
+      // Position of panel relative to the container (not the viewport).
+      const startPanelX = rect.left - containerRect.left;
+      const startPanelY = rect.top - containerRect.top;
+      const panelW = rect.width;
+      const panelH = rect.height;
+      panel.classList.add('cmside-floating-dragging');
+      try { (ev.target as Element)?.setPointerCapture?.(ev.pointerId); } catch {}
+
+      const onMove = (mv: PointerEvent) => {
+        const dx = mv.clientX - startX;
+        const dy = mv.clientY - startY;
+        const minX = FLOATING_MARGIN - panelW;            // allow panel mostly off-left, keep margin visible
+        const maxX = containerRect.width - FLOATING_MARGIN;
+        const minY = 0;                                   // never above container top
+        const maxY = containerRect.height - FLOATING_MARGIN;
+        const newX = Math.min(maxX, Math.max(minX, startPanelX + dx));
+        const newY = Math.min(maxY, Math.max(minY, startPanelY + dy));
+        panel.style.setProperty('--cmside-float-x', `${Math.round(newX)}px`);
+        panel.style.setProperty('--cmside-float-y', `${Math.round(newY)}px`);
+      };
+      const onUp = async () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        panel.classList.remove('cmside-floating-dragging');
+        try {
+          const s = this.getSettings();
+          if (!s) return;
+          const r = panel.getBoundingClientRect();
+          s.floatingX = Math.round(r.left - this.container.getBoundingClientRect().left);
+          s.floatingY = Math.round(r.top - this.container.getBoundingClientRect().top);
+          await this.persistSettings(s);
+        } catch {}
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp, { once: true });
+    };
+    this.toolbarEl.addEventListener('pointerdown', onPointerDown);
+    this.detachFns.push(() => this.toolbarEl.removeEventListener('pointerdown', onPointerDown));
+  }
+
+  // Floating-mode bottom-right corner resize (issue #11).
+  private setupFloatingResize(panel: HTMLElement) {
+    const MIN_W = 280;
+    const MIN_H = 200;
+    const onPointerDown = (ev: PointerEvent) => {
+      if (this.dockPosition !== 'floating') return;
+      if (ev.button !== 0) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const startX = ev.clientX;
+      const startY = ev.clientY;
+      const rect = panel.getBoundingClientRect();
+      const startW = rect.width;
+      const startH = rect.height;
+      const containerRect = this.container.getBoundingClientRect();
+      const panelLeft = rect.left - containerRect.left;
+      const panelTop = rect.top - containerRect.top;
+      const maxW = Math.max(MIN_W, containerRect.width - panelLeft);
+      const maxH = Math.max(MIN_H, containerRect.height - panelTop);
+      panel.classList.add('cmside-floating-resizing');
+      try { (ev.target as Element)?.setPointerCapture?.(ev.pointerId); } catch {}
+
+      const onMove = (mv: PointerEvent) => {
+        const newW = Math.min(maxW, Math.max(MIN_W, startW + (mv.clientX - startX)));
+        const newH = Math.min(maxH, Math.max(MIN_H, startH + (mv.clientY - startY)));
+        panel.style.setProperty('--cmside-float-w', `${Math.round(newW)}px`);
+        panel.style.setProperty('--cmside-float-h', `${Math.round(newH)}px`);
+      };
+      const onUp = async () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        panel.classList.remove('cmside-floating-resizing');
+        try {
+          const s = this.getSettings();
+          if (!s) return;
+          const r = panel.getBoundingClientRect();
+          s.floatingWidth = Math.round(r.width);
+          s.floatingHeight = Math.round(r.height);
+          await this.persistSettings(s);
+        } catch {}
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp, { once: true });
+    };
+    this.cornerResizerEl.addEventListener('pointerdown', onPointerDown);
+    this.detachFns.push(() => this.cornerResizerEl.removeEventListener('pointerdown', onPointerDown));
+  }
+
   // Helpers: map numeric values to preset classes and apply font-size classes
   private mapToPanelWidthClass(px: number): string | null {
     // Quantize to 300..800, step 20 -> class: cmside-width-w{px}
     const q = this.quantize(px, 300, 800, 20);
     return q ? `cmside-width-w${q}` : null;
+  }
+
+  private mapToPanelHeightClass(px: number): string | null {
+    // Quantize to 200..700, step 20 -> class: cmside-height-h{px}
+    const q = this.quantize(px, 200, 700, 20);
+    return q ? `cmside-height-h${q}` : null;
   }
 
   private mapToEditorWidthClass(px: number): string | null {
