@@ -9,6 +9,7 @@ interface CanvasMdSideEditorPluginLike {
   applyFontSizes?(): void;
   refreshCardTitle?(): void;
   applyDockPosition?(): void;
+  applyHeadlineMode?(): void;
 }
 
 export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
@@ -102,17 +103,49 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
         });
       });
 
+    // The "title size" input is only meaningful when headline mode is on, so
+    // we grey it out and disable interaction whenever the toggle is off.
+    let titleSizeInput: HTMLInputElement | null = null;
+    let titleSizeSettingEl: HTMLElement | null = null;
+    const syncTitleSizeEnabled = (enabled: boolean) => {
+      if (titleSizeInput) titleSizeInput.disabled = !enabled;
+      if (titleSizeSettingEl) titleSizeSettingEl.classList.toggle('cmside-setting-disabled', !enabled);
+    };
+
     new Setting(containerEl)
-      .setName('Show editable card title')
-      .setDesc('Show the card title at the top of the side panel. Editing renames the file (file cards) or rewrites the first line (text cards).')
+      .setName('Headline mode')
+      .setDesc('Show only the first H1 (Title) on every Canvas card; full content stays accessible through the side editor. Turn off here to restore normal cards.')
       .addToggle((tg) => {
-        tg.setValue(!!this.plugin.settings.showCardTitle);
+        tg.setValue(!!this.plugin.settings.headlineMode);
         tg.onChange(async (val) => {
-          this.plugin.settings.showCardTitle = !!val;
+          this.plugin.settings.headlineMode = !!val;
           await this.plugin.saveData(this.plugin.settings);
-          this.plugin.refreshCardTitle?.();
+          this.plugin.applyHeadlineMode?.();
+          syncTitleSizeEnabled(!!val);
         });
       });
+
+    const titleSizeSetting = new Setting(containerEl)
+      .setName('Headline title size')
+      .setDesc('Size of the headline title in headline mode, as a percentage of the card\'s width. Bigger value → bigger text. Range 5–60.')
+      .addText((tb) => {
+        tb.inputEl.type = 'number';
+        tb.inputEl.min = '5';
+        tb.inputEl.max = '60';
+        tb.setValue(String(this.plugin.settings.headlineH1Size ?? 22));
+        tb.onChange(async (v) => {
+          const n = Number(v);
+          if (isFinite(n) && n >= 5 && n <= 60) {
+            this.plugin.settings.headlineH1Size = Math.round(n);
+            await this.plugin.saveData(this.plugin.settings);
+            this.plugin.applyHeadlineMode?.();
+          }
+        });
+        titleSizeInput = tb.inputEl;
+      });
+    titleSizeSettingEl = titleSizeSetting.settingEl;
+    // Apply the initial enabled/disabled state based on the persisted toggle.
+    syncTitleSizeEnabled(!!this.plugin.settings.headlineMode);
 
     containerEl.createEl('h3', { text: 'Typography' });
 

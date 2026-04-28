@@ -37,10 +37,9 @@ function makeCanvasView(containerEl: HTMLElement): CanvasLikeView {
   } as unknown as CanvasLikeView;
 }
 
-async function makePlugin(app: App, showCardTitle = true) {
+async function makePlugin(app: App) {
   const plugin = new CanvasMdSideEditorPlugin(app, { id: 'test', version: '0.0.0' } as any);
   await plugin.onload();
-  plugin.settings.showCardTitle = showCardTitle;
   return plugin;
 }
 
@@ -187,19 +186,3 @@ describe('issue #10 — text card title', () => {
   });
 });
 
-describe('issue #10 — feature toggle off', () => {
-  it('shows the static "Canvas MD Side Editor" title when the setting is disabled', async () => {
-    const app = new App();
-    (app.vault as any).__seed('notes/foo.md', 'x');
-    const plugin = await makePlugin(app, /* showCardTitle */ false);
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-    const view = makeCanvasView(container);
-    await (plugin as any).attachToCanvas(view);
-    await (plugin as any).openEditorForNode(view, { id: 'n1', type: 'file', file: 'notes/foo.md' });
-
-    expect(getTitleInput()).toBeNull();
-    const titleEl = document.querySelector('.cmside-title')!;
-    expect(titleEl.textContent).toBe('Canvas MD Side Editor');
-  });
-});

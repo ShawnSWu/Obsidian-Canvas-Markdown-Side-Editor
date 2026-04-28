@@ -131,8 +131,15 @@ export class PluginSettingTab {
 
 export class Setting {
   containerEl: HTMLElement;
+  settingEl: HTMLElement;
   constructor(containerEl: HTMLElement) {
     this.containerEl = containerEl;
+    // Mirror Obsidian's real DOM: each Setting builds its own row wrapper
+    // appended under the parent containerEl. Tests can use settingEl to
+    // toggle row-level state (e.g., a "disabled" class on dependent rows).
+    this.settingEl = document.createElement('div');
+    this.settingEl.classList.add('setting-item');
+    this.containerEl.appendChild(this.settingEl);
   }
   setName(_n: string) { return this; }
   setDesc(_d: string) { return this; }
@@ -144,7 +151,7 @@ export class Setting {
       onChange: (handler: (v: string) => void) => { inputEl.addEventListener('input', () => handler(inputEl.value)); return tb; },
     };
     cb(tb);
-    this.containerEl.appendChild(inputEl);
+    this.settingEl.appendChild(inputEl);
     return this;
   }
   addToggle(cb: (tg: any) => void) {
@@ -155,7 +162,7 @@ export class Setting {
       onChange: (handler: (v: boolean) => void) => { inputEl.addEventListener('change', () => handler(inputEl.checked)); return tg; },
     };
     cb(tg);
-    this.containerEl.appendChild(inputEl);
+    this.settingEl.appendChild(inputEl);
     return this;
   }
   addDropdown(cb: (dd: any) => void) {
@@ -177,7 +184,7 @@ export class Setting {
       onChange: (handler: (v: string) => void) => { selectEl.addEventListener('change', () => handler(selectEl.value)); return dd; },
     };
     cb(dd);
-    this.containerEl.appendChild(selectEl);
+    this.settingEl.appendChild(selectEl);
     return this;
   }
 }

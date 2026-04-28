@@ -71,6 +71,13 @@ If your plugin does not need CSS, delete this file.
 /* Container patch class used instead of setting inline position in JS */
 .cmside-container-patched { position: relative; }
 
+/* Disabled-look for dependent settings (e.g., headline title size when
+   headline mode is off). Native `disabled` on the input handles input
+   blocking; this class greys out the row visually so it's obvious why
+   it can't be edited. */
+.cmside-setting-disabled { opacity: 0.5; pointer-events: none; }
+.cmside-setting-disabled input { cursor: not-allowed; }
+
 /* Toolbar */
 .canvas-md-side-editor-panel .cmside-toolbar {
   display: flex;
@@ -86,14 +93,25 @@ If your plugin does not need CSS, delete this file.
   font-size: 12px;
   font-weight: 600;
   opacity: 0.8;
-  flex: 1 1 auto;
+  /* Don't grow into the rest of the toolbar — leaving free space here is
+     what makes the toolbar draggable in floating mode. The title shrinks
+     to fit its content (input width follows text length). */
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
 }
 .canvas-md-side-editor-panel .cmside-title.cmside-title-editable {
   opacity: 1;
 }
 .canvas-md-side-editor-panel .cmside-title-input {
-  width: 100%;
+  /* `field-sizing: content` is supported in modern Chromium (Obsidian uses
+     a recent Electron). It makes the input auto-size to its current value,
+     so a short title doesn't reserve a long bar. min/max-width keep the
+     edit affordance reasonable. */
+  field-sizing: content;
+  width: auto;
+  min-width: 4em;
+  max-width: 28em;
   font: inherit;
   font-size: 12px;
   font-weight: 600;
@@ -129,6 +147,103 @@ If your plugin does not need CSS, delete this file.
 }
 .canvas-md-side-editor-panel .cmside-toggle-preview-btn:hover {
   background: var(--background-modifier-hover);
+}
+
+/* Headline mode (issue #13): when enabled in settings, every canvas card
+   hides its rendered body content and shows only the first H1 (Title) + H2
+   (Subtitle). Full content stays accessible through the side editor.
+   Toggling the body class is the only thing the plugin does at runtime —
+   the rest is pure CSS.
+
+   We hide block-level content tags directly (instead of hiding non-h1/h2
+   children of a wrapper) because Obsidian renders headings nested inside
+   `.markdown-preview-sizer`, so a `> *:not(h1):not(h2)` rule would hide
+   the wrapper and take h1/h2 with it. */
+body.cmside-headline-mode .canvas-node :is(
+  p, ul, ol, dl,
+  blockquote, pre, code,
+  hr, table, figure,
+  img, picture, video, iframe, embed, object, audio,
+  h2, h3, h4, h5, h6,
+  .callout, .image-embed, .file-embed, .markdown-embed-link,
+  .internal-embed, .external-link, .footnotes
+) {
+  display: none !important;
+}
+/* Only the first H1 in the card counts as the title — drop any subsequent
+   H1s so multi-H1 cards still produce a clean single-headline look. */
+body.cmside-headline-mode .canvas-node h1 ~ h1 {
+  display: none !important;
+}
+
+/* Establish the card's content area as a CSS container so font sizes can
+   be expressed in `cqi` (1% of container inline size). This makes the
+   Title/Subtitle scale with the card itself — and because canvas zoom is
+   implemented as a transform on the parent, the same rule also makes the
+   text track zoom level visually. */
+body.cmside-headline-mode .canvas-node .canvas-node-content,
+body.cmside-headline-mode .canvas-node .markdown-embed,
+body.cmside-headline-mode .canvas-node .markdown-embed-content,
+body.cmside-headline-mode .canvas-node .markdown-preview-view {
+  container-type: inline-size;
+}
+
+/* Centre the (now title-only) content vertically + horizontally inside
+   the card. Multiple selector layers cover the variations in canvas DOM. */
+body.cmside-headline-mode .canvas-node .markdown-preview-view,
+body.cmside-headline-mode .canvas-node .markdown-preview-sizer,
+body.cmside-headline-mode .canvas-node .markdown-rendered,
+body.cmside-headline-mode .canvas-node .markdown-embed-content {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 3% 4% !important;
+  box-sizing: border-box !important;
+  text-align: center !important;
+}
+
+body.cmside-headline-mode .canvas-node h1 {
+  font-size: clamp(16px, calc(var(--cmside-h1-size, 22) * 1cqi), 240px) !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  line-height: 1.1 !important;
+  color: var(--text-normal) !important;
+  word-break: break-word !important;
+  max-width: 100% !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 4 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+}
+
+/* Don't enforce headline view while the card is in inline-edit mode so the
+   user can still see / edit the full markdown if they double-click. */
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) :is(
+  p, ul, ol, dl,
+  blockquote, pre, code,
+  hr, table, figure,
+  img, picture, video, iframe, embed, object, audio,
+  h2, h3, h4, h5, h6,
+  .callout, .image-embed, .file-embed, .markdown-embed-link,
+  .internal-embed, .external-link, .footnotes
+),
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) h1 ~ h1 {
+  display: revert !important;
+}
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-view,
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-sizer,
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-rendered,
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-content {
+  display: revert !important;
+  height: revert !important;
+  padding: revert !important;
+  text-align: revert !important;
 }
 
 .canvas-md-side-editor-panel .cmside-split {

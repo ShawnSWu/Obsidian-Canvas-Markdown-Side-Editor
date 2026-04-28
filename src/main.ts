@@ -85,6 +85,10 @@ class CanvasMdSideEditorPlugin extends Plugin {
       addIcon('cmside-one-col', iconOneCol);
     } catch {}
 
+    // Apply headline-mode body class on load so it covers any canvas that's
+    // already open before our event listeners fire.
+    this.applyHeadlineMode();
+
     // Styles are now provided by styles.css bundled with the plugin
     // Track canvas changes
     const attach = async () => {
@@ -205,6 +209,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
   }
 
   onunload() {
+    try { document.body.classList.remove('cmside-headline-mode'); } catch {}
     this.teardownPanel();
     this.detachFromCanvas();
   }
@@ -689,6 +694,18 @@ class CanvasMdSideEditorPlugin extends Plugin {
     } catch {}
   }
 
+  // Toggle the body-level class that drives the headline-mode CSS (issue #13)
+  // and publish the user-tunable Title/Subtitle sizes as CSS variables. Pure
+  // CSS does the rest, so we don't need to touch any canvas DOM ourselves.
+  public applyHeadlineMode(): void {
+    try {
+      const on = !!this.settings.headlineMode;
+      document.body.classList.toggle('cmside-headline-mode', on);
+      const h1 = clampHeadlineSize(this.settings.headlineH1Size, 22, 5, 60);
+      document.body.style.setProperty('--cmside-h1-size', String(h1));
+    } catch {}
+  }
+
   // Re-render the toolbar title using the currently open node. Called by the
   // settings tab when the user toggles "Show editable card title".
   public refreshCardTitle(): void {
@@ -699,10 +716,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
   private applyCardTitle(view: CanvasLikeView, node: CanvasNode, currentContent: string): void {
     if (!this.panelController) return;
-    if (!this.settings.showCardTitle) {
-      this.panelController.setTitle('Canvas MD Side Editor');
-      return;
-    }
     if (node.type === 'file' && typeof node.file === 'string') {
       const file = this.resolveVaultFile(node.file);
       const basename = file?.basename ?? '';
@@ -877,6 +890,14 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
   
 
+}
+
+// Coerce a possibly-invalid stored size into a number inside [min, max],
+// falling back to `fallback` for non-finite or missing values.
+function clampHeadlineSize(value: unknown, fallback: number, min: number, max: number): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
 }
 
 export default CanvasMdSideEditorPlugin;

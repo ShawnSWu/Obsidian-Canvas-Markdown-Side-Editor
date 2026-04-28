@@ -21,15 +21,16 @@ function setup(overrides: Partial<CanvasMdSideEditorSettings> = {}) {
   return { tab, plugin, settings };
 }
 
-// Input slots in display order, after issue #11 wiring:
+// Input slots in display order:
 //   dockPosition (select, not <input>)
 //   defaultPanelWidth (input #0)
 //   defaultPanelHeight (input #1)
 //   previewDebounceMs (input #2)
 //   readOnly (input #3, checkbox)
-//   showCardTitle (input #4, checkbox)
-//   editorFontSize (input #5)
-//   previewFontSize (input #6)
+//   headlineMode (input #4, checkbox)
+//   headlineH1Size (input #5)
+//   editorFontSize (input #6)
+//   previewFontSize (input #7)
 
 function nthInput(container: HTMLElement, index: number): HTMLInputElement {
   return container.querySelectorAll('input')[index] as HTMLInputElement;
@@ -50,8 +51,8 @@ const flushAsync = () => new Promise<void>((r) => setTimeout(r, 0));
 describe('CanvasMdSideEditorSettingTab.display', () => {
   it('renders the expected control set', () => {
     const { tab } = setup();
-    // 5 number inputs + 2 checkboxes = 7 <input> elements
-    expect(tab.containerEl.querySelectorAll('input').length).toBe(7);
+    // 6 number inputs + 2 checkboxes = 8 <input> elements
+    expect(tab.containerEl.querySelectorAll('input').length).toBe(8);
     // 1 dropdown (<select>) for dock position
     expect(tab.containerEl.querySelectorAll('select').length).toBe(1);
   });
@@ -153,10 +154,97 @@ describe('Read only toggle', () => {
   });
 });
 
+describe('Headline mode toggle (issue #13)', () => {
+  it('persists the toggle state and calls applyHeadlineMode', async () => {
+    const settings: CanvasMdSideEditorSettings = { ...DEFAULT_SETTINGS, headlineMode: false };
+    const plugin = {
+      settings,
+      saveData: vi.fn(async () => {}),
+      setReadOnly: vi.fn(),
+      applyFontSizes: vi.fn(),
+      applyDockPosition: vi.fn(),
+      applyHeadlineMode: vi.fn(),
+    };
+    const tab = new CanvasMdSideEditorSettingTab(new App(), plugin as any);
+    tab.display();
+    const checkbox = nthInput(tab.containerEl, 4);
+    fire(checkbox, true);
+    expect(settings.headlineMode).toBe(true);
+    await flushAsync();
+    expect(plugin.saveData).toHaveBeenCalled();
+    expect(plugin.applyHeadlineMode).toHaveBeenCalled();
+  });
+});
+
+describe('Headline title size input (issue #13)', () => {
+  function setupWithApply(overrides: Partial<CanvasMdSideEditorSettings> = {}) {
+    const settings: CanvasMdSideEditorSettings = { ...DEFAULT_SETTINGS, ...overrides };
+    const plugin = {
+      settings,
+      saveData: vi.fn(async () => {}),
+      setReadOnly: vi.fn(),
+      applyFontSizes: vi.fn(),
+      applyDockPosition: vi.fn(),
+      applyHeadlineMode: vi.fn(),
+    };
+    const tab = new CanvasMdSideEditorSettingTab(new App(), plugin as any);
+    tab.display();
+    return { tab, plugin, settings };
+  }
+
+  it('persists title size and re-applies headline mode', async () => {
+    const { tab, plugin, settings } = setupWithApply({ headlineMode: true, headlineH1Size: 22 });
+    const input = nthInput(tab.containerEl, 5);
+    fire(input, '30');
+    expect(settings.headlineH1Size).toBe(30);
+    await flushAsync();
+    expect(plugin.applyHeadlineMode).toHaveBeenCalled();
+  });
+
+  it('rejects title sizes outside 5–60', async () => {
+    const { tab, plugin, settings } = setupWithApply({ headlineMode: true, headlineH1Size: 22 });
+    const input = nthInput(tab.containerEl, 5);
+    fire(input, '999');
+    expect(settings.headlineH1Size).toBe(22);
+    await flushAsync();
+    expect(plugin.applyHeadlineMode).not.toHaveBeenCalled();
+  });
+
+  it('starts disabled when headline mode is off', () => {
+    const { tab } = setupWithApply({ headlineMode: false });
+    const input = nthInput(tab.containerEl, 5);
+    expect(input.disabled).toBe(true);
+    // its row should carry the visual-disabled class
+    const settingRow = input.closest('.setting-item') as HTMLElement | null;
+    expect(settingRow?.classList.contains('cmside-setting-disabled')).toBe(true);
+  });
+
+  it('starts enabled when headline mode is on', () => {
+    const { tab } = setupWithApply({ headlineMode: true });
+    const input = nthInput(tab.containerEl, 5);
+    expect(input.disabled).toBe(false);
+    const settingRow = input.closest('.setting-item') as HTMLElement | null;
+    expect(settingRow?.classList.contains('cmside-setting-disabled')).toBe(false);
+  });
+
+  it('toggles the disabled state when headline mode is flipped', async () => {
+    const { tab } = setupWithApply({ headlineMode: false });
+    const titleInput = nthInput(tab.containerEl, 5);
+    const headlineToggle = nthInput(tab.containerEl, 4);
+    expect(titleInput.disabled).toBe(true);
+    fire(headlineToggle, true);
+    await flushAsync();
+    expect(titleInput.disabled).toBe(false);
+    fire(headlineToggle, false);
+    await flushAsync();
+    expect(titleInput.disabled).toBe(true);
+  });
+});
+
 describe('Font size inputs', () => {
   it('persists editor font size and re-applies', async () => {
     const { tab, plugin, settings } = setup({ editorFontSize: 16 });
-    const input = nthInput(tab.containerEl, 5);
+    const input = nthInput(tab.containerEl, 6);
     fire(input, '14');
     expect(settings.editorFontSize).toBe(14);
     await flushAsync();
@@ -165,7 +253,7 @@ describe('Font size inputs', () => {
 
   it('persists preview font size and re-applies', async () => {
     const { tab, plugin, settings } = setup({ previewFontSize: 16 });
-    const input = nthInput(tab.containerEl, 6);
+    const input = nthInput(tab.containerEl, 7);
     fire(input, '18');
     expect(settings.previewFontSize).toBe(18);
     await flushAsync();
@@ -174,7 +262,7 @@ describe('Font size inputs', () => {
 
   it('rejects font sizes below 8 px', async () => {
     const { tab, plugin, settings } = setup({ editorFontSize: 16 });
-    const input = nthInput(tab.containerEl, 5);
+    const input = nthInput(tab.containerEl, 6);
     fire(input, '4');
     expect(settings.editorFontSize).toBe(16);
     await flushAsync();

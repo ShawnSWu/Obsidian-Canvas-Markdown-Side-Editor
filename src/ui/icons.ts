@@ -12,3 +12,4 @@ export const iconOneCol = `
     <path d="M15 5.5V18.5" stroke="currentColor" stroke-width="1.5" opacity=".25"/>
   </svg>
 `;
+
