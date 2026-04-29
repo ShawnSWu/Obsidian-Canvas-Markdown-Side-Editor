@@ -639,38 +639,20 @@ class CanvasMdSideEditorPlugin extends Plugin {
       }
     }
 
-    // Decide which editor to use. File cards point at a real .md and can
-    // ride a real MarkdownView for full Live Preview; text cards have
-    // inline JSON content with no backing file, so they stay on the
-    // legacy CM6 path for now.
-    const fileForLeaf =
-      node.type === 'file' && typeof node.file === 'string'
-        ? this.resolveVaultFile(node.file)
-        : null;
-    const useLeaf = !this.settings.readOnly && !!fileForLeaf;
-
-    if (useLeaf && fileForLeaf) {
-      // Tear down any leftover CM6 view from a previous text-card open.
-      this.disposeCmView();
-      if (!this.mdLeafHost) this.mdLeafHost = new MarkdownLeafHost(this.app);
-      const opened = await this.mdLeafHost.open(fileForLeaf, this.editorRootEl!);
-      if (opened) {
-        this.usingLeafHost = true;
-      } else {
-        // Fall back to CM6 if the detached-leaf trick refused to work on
-        // this Obsidian build.
-        try { console.warn('CanvasMdSideEditor: live preview leaf unavailable, falling back to CM6'); } catch {}
-        await this.openCmEditor(initial);
-      }
-    } else {
-      // Text card or read-only — drop any leaf and use the CM6 editor.
-      if (this.mdLeafHost) {
-        await this.mdLeafHost.detach();
-      }
-      this.usingLeafHost = false;
-      if (!this.settings.readOnly) {
-        await this.openCmEditor(initial);
-      }
+    // Live Preview leaf hijack (issue #9) is currently disabled. The
+    // detached-leaf approach hits an Obsidian 1.7+ cold-start race: the
+    // first leaf construction returns a DeferredView placeholder and only
+    // the second cycle promotes it to a real MarkdownView. That causes
+    // the side panel to flip from CM6 fallback to Live Preview between
+    // consecutive clicks of the same card — jarring UX. Until a stable
+    // approach exists (Hover Editor-style real-leaf reparent), we always
+    // use the plain CM6 editor and pair it with the side preview pane.
+    if (this.mdLeafHost) {
+      await this.mdLeafHost.detach();
+    }
+    this.usingLeafHost = false;
+    if (!this.settings.readOnly) {
+      await this.openCmEditor(initial);
     }
 
     // Initial preview render. For file cards, read fresh content so the
