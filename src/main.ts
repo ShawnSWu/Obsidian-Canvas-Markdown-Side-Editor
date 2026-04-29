@@ -72,6 +72,17 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private readonly MOVE_TOLERANCE_PX: number = 6; // distance threshold to treat as drag
   private readonly LONG_PRESS_MS: number = 350;   // duration threshold to treat as long-press
 
+  // Monotonically-increasing generation counter for openEditorForNode.
+  // Concurrent rapid clicks (e.g. fast double-click on one card, then a
+  // click on another) can fire multiple openEditorForNode invocations
+  // that all suspend on `await vault.read(...)`. Reads can complete out
+  // of order, so an earlier-issued call's resume could clobber a
+  // later-issued call's render — including writing the wrong content to
+  // the wrong card on save (CM6 mode) or just showing the wrong preview
+  // (read-only mode). Each call captures its own myGen on entry and
+  // bails after every await if a newer call has bumped the counter.
+  private openGeneration: number = 0;
+
   async onload() {
     // Load settings and register settings tab
     try {
@@ -611,6 +622,11 @@ class CanvasMdSideEditorPlugin extends Plugin {
   }
 
   private async openEditorForNode(view: any, node: CanvasNode) {
+    // Stake out a unique generation for this invocation. Concurrent
+    // rapid clicks bump the counter; if our gen is no longer current
+    // after any await, we must bail before applying side effects.
+    const myGen = ++this.openGeneration;
+
     // Safety net: drop any orphaned panel reference before (re)building.
     if (this.panelEl && !this.panelEl.isConnected) {
       this.teardownPanel();
@@ -636,6 +652,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
       const mdFile = this.resolveVaultFile(node.file);
       if (mdFile) {
         initial = await this.app.vault.read(mdFile);
+        if (this.openGeneration !== myGen) return;
       }
     }
 
@@ -649,10 +666,12 @@ class CanvasMdSideEditorPlugin extends Plugin {
     // use the plain CM6 editor and pair it with the side preview pane.
     if (this.mdLeafHost) {
       await this.mdLeafHost.detach();
+      if (this.openGeneration !== myGen) return;
     }
     this.usingLeafHost = false;
     if (!this.settings.readOnly) {
       await this.openCmEditor(initial);
+      if (this.openGeneration !== myGen) return;
     }
 
     // Initial preview render. For file cards, read fresh content so the
@@ -662,6 +681,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
       initialForPreview = this.mdLeafHost?.getValue() ?? initial;
     }
     await this.renderPreview(initialForPreview);
+    if (this.openGeneration !== myGen) return;
 
     // Render the toolbar title (static or editable depending on settings).
     this.applyCardTitle(view, node, initialForPreview);
@@ -673,7 +693,10 @@ class CanvasMdSideEditorPlugin extends Plugin {
       const textNow = this.usingLeafHost
         ? (this.mdLeafHost?.getValue() ?? initialForPreview)
         : (this.cmView?.state.doc.toString() ?? initialForPreview);
-      setTimeout(() => { this.renderPreview(textNow); }, 80);
+      setTimeout(() => {
+        if (this.openGeneration !== myGen) return;
+        this.renderPreview(textNow);
+      }, 80);
     } catch {}
     // Focus editor for immediate typing (skip if read-only)
     if (!this.settings.readOnly) {
