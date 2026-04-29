@@ -175,7 +175,11 @@ export class PanelController {
   // UI state
   setPreviewCollapsed(collapsed: boolean) {
     if (!this.panelEl) return;
-    if (this.readOnly) collapsed = false; // force visible in read-only
+    // Defensive: setReadOnly drives this method with the right value, but
+    // direct callers shouldn't be able to hide the preview while we're in
+    // read-only mode (where the editor pane is hidden — collapsing preview
+    // too would leave the panel empty).
+    if (this.readOnly) collapsed = false;
     this.previewCollapsed = !!collapsed;
     if (this.previewCollapsed) this.panelEl.classList.add('preview-collapsed');
     else this.panelEl.classList.remove('preview-collapsed');
