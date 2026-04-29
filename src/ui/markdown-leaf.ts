@@ -27,8 +27,26 @@ export class MarkdownLeafHost {
 
   // Open the given .md file in a fresh detached leaf and mount its DOM into
   // `mountEl`. Returns the live `MarkdownView` on success, or null if the
-  // runtime refused to construct a detached leaf.
+  // runtime refused.
+  //
+  // Retries internally once: the very first leaf-construction cycle after
+  // Obsidian starts (or after some workspace-state churn) hands back a
+  // `DeferredView` placeholder rather than a real `MarkdownView`. A second
+  // cycle gets the real thing because the machinery is now warm. We pay
+  // the second cycle up front so the user never sees the first-click
+  // failure mode (manually closing + reopening the panel was the human
+  // workaround; this is the same thing in code).
   async open(file: TFile, mountEl: HTMLElement): Promise<MarkdownView | null> {
+    const first = await this.tryOpen(file, mountEl);
+    if (first) return first;
+    const second = await this.tryOpen(file, mountEl);
+    if (!second) {
+      try { console.warn('CanvasMdSideEditor: leaf hijack failed after 2 attempts'); } catch {}
+    }
+    return second;
+  }
+
+  private async tryOpen(file: TFile, mountEl: HTMLElement): Promise<MarkdownView | null> {
     await this.detach();
     this.mountEl = mountEl;
 
@@ -57,7 +75,8 @@ export class MarkdownLeafHost {
 
     const view = leaf.view;
     if (!(view instanceof MarkdownView)) {
-      try { console.warn('CanvasMdSideEditor: leaf.view is not a MarkdownView', view); } catch {}
+      // Silent here — `open()` retries once before logging. The placeholder
+      // case is the cold-start race; the retry usually clears it.
       await this.detach();
       return null;
     }
