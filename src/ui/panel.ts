@@ -13,7 +13,6 @@ export type PanelRefs = {
   panelEl: HTMLElement;
   editorRootEl: HTMLElement;
   previewRootEl: HTMLElement;
-  toggleBtn: HTMLButtonElement;
   closeBtn: HTMLButtonElement;
 };
 
@@ -28,7 +27,6 @@ export class PanelController {
   private panelEl: HTMLElement | null = null;
   private editorRootEl: HTMLElement | null = null;
   private previewRootEl: HTMLElement | null = null;
-  private toggleBtn!: HTMLButtonElement;
   private closeBtn!: HTMLButtonElement;
   private titleEl!: HTMLElement;
   private dividerEl!: HTMLElement;
@@ -80,7 +78,6 @@ export class PanelController {
     const titleEl = toolbar.createDiv({ cls: 'cmside-title' });
     titleEl.setText('Canvas MD Side Editor');
     const actionsEl = toolbar.createDiv({ cls: 'cmside-actions' });
-    const toggleBtn = actionsEl.createEl('button', { cls: 'cmside-toggle-preview-btn' });
     const closeBtn = actionsEl.createEl('button', { cls: 'cmside-close-btn', text: '×' });
 
     const split = panel.createDiv({ cls: 'cmside-split' });
@@ -106,7 +103,6 @@ export class PanelController {
     this.panelEl = panel;
     this.editorRootEl = editorRoot;
     this.previewRootEl = previewRoot;
-    this.toggleBtn = toggleBtn;
     this.closeBtn = closeBtn;
     this.titleEl = titleEl;
     this.dividerEl = divider;
@@ -165,17 +161,11 @@ export class PanelController {
       panelEl: panel,
       editorRootEl: editorRoot,
       previewRootEl: previewRoot,
-      toggleBtn,
       closeBtn,
     };
   }
 
   // Attach external handlers
-  onToggle(cb: () => void) {
-    const handler = () => { try { cb(); } catch {} };
-    this.toggleBtn.addEventListener('click', handler);
-    this.detachFns.push(() => this.toggleBtn.removeEventListener('click', handler));
-  }
   onClose(cb: () => void) {
     const handler = () => { try { cb(); } catch {} };
     this.closeBtn.addEventListener('click', handler);
@@ -195,15 +185,10 @@ export class PanelController {
   setReadOnly(ro: boolean) {
     this.readOnly = !!ro;
     if (!this.panelEl) return;
-    if (this.readOnly) {
-      this.panelEl.classList.add('read-only');
-      // ensure preview is visible and layout updated
-      this.setPreviewCollapsed(false);
-    } else {
-      this.panelEl.classList.remove('read-only');
-      // restore layout based on current collapsed state
-      this.setPreviewCollapsed(this.previewCollapsed);
-    }
+    if (this.readOnly) this.panelEl.classList.add('read-only');
+    else this.panelEl.classList.remove('read-only');
+    // 1:1 binding — preview is shown iff we're in read-only mode.
+    this.setPreviewCollapsed(!this.readOnly);
   }
 
   private applyCollapsedLayout() {

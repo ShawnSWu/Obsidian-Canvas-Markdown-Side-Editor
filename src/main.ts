@@ -1,9 +1,8 @@
 import { EditorView } from '@codemirror/view';
-import { Notice, Plugin, TFile, WorkspaceLeaf, addIcon, setIcon } from 'obsidian';
+import { Notice, Plugin, TFile, WorkspaceLeaf } from 'obsidian';
 import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS } from './settings';
 import type { CanvasNode, CanvasData, CanvasLikeView, CanvasLike } from './types';
 import { buildRenamePath, extractTitleFromText, patchFirstLineWithTitle } from './utils/card-title';
-import { iconOneCol, iconTwoCols } from './ui/icons';
 import { prewarmMarkdownLeaf } from './ui/prewarm';
 import { CanvasMdSideEditorSettingTab } from './ui/setting-tab';
 import { findNodeIdAtPoint } from './utils/canvas';
@@ -44,7 +43,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private editorClickAttachedEl: HTMLElement | null = null;
   private containerElRef: HTMLElement | null = null;
   private containerPosPatched: boolean = false;
-  private previewCollapsed: boolean = false;
+  private previewCollapsed: boolean = true;
   private previewHelper: PreviewHelper | null = null;
   private panelController: PanelController | null = null;
   // Live Preview host for file-type canvas nodes (issue #9). Lazily created
@@ -83,15 +82,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
     }
 
     this.addSettingTab(new CanvasMdSideEditorSettingTab(this.app, this));
-
-    // Start with preview visible by default. Collapsed state is session-only.
-    this.previewCollapsed = false;
-
-    // Register custom icons for toggle button
-    try {
-      addIcon('cmside-two-cols', iconTwoCols);
-      addIcon('cmside-one-col', iconOneCol);
-    } catch {}
 
     // Apply headline-mode body class on load so it covers any canvas that's
     // already open before our event listeners fire.
@@ -592,31 +582,10 @@ class CanvasMdSideEditorPlugin extends Plugin {
       // Ensure preview helper is wired to the preview container
       if (!this.previewHelper) this.previewHelper = new PreviewHelper(this.app, this);
       this.previewHelper.setContainer(this.previewRootEl!);
-      // Toggle wiring and icon
-      const setToggleIcon = (collapsed: boolean) => {
-        setIcon(refs.toggleBtn, collapsed ? 'cmside-two-cols' : 'cmside-one-col');
-        refs.toggleBtn.setAttribute('aria-label', collapsed ? 'Show Preview' : 'Hide Preview');
-        refs.toggleBtn.setAttribute('title', collapsed ? 'Show Preview' : 'Hide Preview');
-      };
-      setToggleIcon(this.previewCollapsed);
       this.panelController.setPreviewCollapsed(this.previewCollapsed);
-      this.panelController.onToggle(() => {
-        this.previewCollapsed = !this.previewCollapsed;
-        this.panelController!.setPreviewCollapsed(this.previewCollapsed);
-        setToggleIcon(this.previewCollapsed);
-      });
       this.panelController.onClose(() => { try { this.saveAndClose(view); } catch {} });
       return; // use controller-built panel; skip legacy DOM building below
     }
-  }
-
-  // Public method for commands to toggle preview (delegates to the toolbar button)
-  public togglePreview(): void {
-    try {
-      if (!this.panelEl) return;
-      const btn = this.panelEl.querySelector('.cmside-toggle-preview-btn') as HTMLButtonElement | null;
-      btn?.click();
-    } catch {}
   }
 
   private async openEditorForNode(view: any, node: CanvasNode) {

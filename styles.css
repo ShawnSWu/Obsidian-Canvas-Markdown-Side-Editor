@@ -128,7 +128,6 @@ If your plugin does not need CSS, delete this file.
   background: var(--background-primary);
 }
 .canvas-md-side-editor-panel .cmside-actions { display: flex; gap: 6px; }
-.canvas-md-side-editor-panel .cmside-toggle-preview-btn,
 .canvas-md-side-editor-panel .cmside-close-btn {
   width: 24px;
   height: 24px;
@@ -140,12 +139,8 @@ If your plugin does not need CSS, delete this file.
   color: var(--text-normal);
   cursor: pointer;
 }
-.canvas-md-side-editor-panel .cmside-toggle-preview-btn { width: 24px; padding: 0; display: grid; place-items: center; }
 .canvas-md-side-editor-panel .cmside-actions .cmside-icon { width: 14px; height: 14px; display: block; }
 .canvas-md-side-editor-panel .cmside-close-btn:hover {
-  background: var(--background-modifier-hover);
-}
-.canvas-md-side-editor-panel .cmside-toggle-preview-btn:hover {
   background: var(--background-modifier-hover);
 }
 
@@ -255,11 +250,10 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed
   padding: 0;
   overscroll-behavior: contain;
 }
-/* Read-only state: hide editor and divider; make preview full width; hide toggle button */
+/* Read-only state: hide editor and divider; make preview full width */
 .canvas-md-side-editor-panel.read-only .cmside-pane-editor { display: none; }
 .canvas-md-side-editor-panel.read-only .cmside-divider { display: none; }
 .canvas-md-side-editor-panel.read-only .cmside-pane-preview { flex: 1 1 auto; }
-.canvas-md-side-editor-panel.read-only .cmside-toggle-preview-btn { display: none; }
 /* Panel left-edge resizer */
 .canvas-md-side-editor-panel .cmside-panel-resizer {
   position: absolute;
