@@ -75,6 +75,10 @@ export class Workspace {
     return { id: Math.random() };
   });
   off = vi.fn();
+  // No-op stub so plugin code that schedules pre-warm work via
+  // onLayoutReady can run under the test harness without firing the
+  // callback (tests that need the callback can override this).
+  onLayoutReady = vi.fn((_cb: () => void) => {});
   // Helper for tests
   __emit(event: string, ...args: any[]) {
     this.listeners.get(event)?.forEach((cb) => cb(...args));

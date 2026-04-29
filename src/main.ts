@@ -4,6 +4,7 @@ import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS } from './settings';
 import type { CanvasNode, CanvasData, CanvasLikeView, CanvasLike } from './types';
 import { buildRenamePath, extractTitleFromText, patchFirstLineWithTitle } from './utils/card-title';
 import { iconOneCol, iconTwoCols } from './ui/icons';
+import { prewarmMarkdownLeaf } from './ui/prewarm';
 import { CanvasMdSideEditorSettingTab } from './ui/setting-tab';
 import { findNodeIdAtPoint } from './utils/canvas';
 import { registerCommands } from './commands/register';
@@ -117,6 +118,14 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
     // Register commands
     registerCommands(this);
+
+    // Pre-warm Obsidian's markdown view machinery so the very first
+    // file-card open lands in MarkdownLeafHost's hot path instead of
+    // the CM6 fallback (issue #9 cold-start race). Fire-and-forget;
+    // best-effort.
+    this.app.workspace.onLayoutReady(() => {
+      void prewarmMarkdownLeaf(this.app);
+    });
 
     // Re-attach on leaf/view changes
     const ref1 = this.app.workspace.on('active-leaf-change', () => attach());
