@@ -680,6 +680,11 @@ class CanvasMdSideEditorPlugin extends Plugin {
     if (this.usingLeafHost) {
       initialForPreview = this.mdLeafHost?.getValue() ?? initial;
     }
+    // Belt: don't even kick off the markdown render if we're already
+    // stale. Suspenders: PreviewHelper.renderText is single-flight so
+    // even if we do enqueue a stale text, it will be replaced by a
+    // newer one before MarkdownRenderer ever sees it.
+    if (this.openGeneration !== myGen) return;
     await this.renderPreview(initialForPreview);
     if (this.openGeneration !== myGen) return;
 
