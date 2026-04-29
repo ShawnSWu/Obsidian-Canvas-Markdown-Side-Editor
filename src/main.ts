@@ -672,6 +672,14 @@ class CanvasMdSideEditorPlugin extends Plugin {
     if (!this.settings.readOnly) {
       await this.openCmEditor(initial);
       if (this.openGeneration !== myGen) return;
+    } else if (this.cmView) {
+      // Burn down any cmView left over from a prior non-read-only session.
+      // Otherwise the next saveCurrentEdits would dump the previous card's
+      // editor content back into whatever node is currently selected — for
+      // file cards that means overwriting the linked .md file with the
+      // wrong text, which then surfaces as the bug where clicking card 2
+      // shows card 1's content (the file got rewritten on the way in).
+      this.disposeCmView();
     }
 
     // Initial preview render. For file cards, read fresh content so the
