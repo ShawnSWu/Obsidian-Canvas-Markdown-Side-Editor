@@ -9,9 +9,14 @@ type Command = {
 
 interface CommandRegistrablePlugin {
   addCommand(cmd: Command): void;
+  togglePreview?(): void;
 }
 
-export function registerCommands(_plugin: CommandRegistrablePlugin) {
-  // No commands at the moment. Toggle Preview was retired when the
-  // preview pane became read-only-only (issue #9 follow-up).
+export function registerCommands(plugin: CommandRegistrablePlugin) {
+  // Toggle the preview pane inside the side editor
+  plugin.addCommand({
+    id: 'cmside-toggle-preview',
+    name: 'Canvas Side Editor: Toggle Preview',
+    callback: () => plugin.togglePreview?.(),
+  });
 }

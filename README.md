@@ -41,9 +41,8 @@ The goal is simple:
   - Paste screenshots or images directly. Files are saved into your preferred 📂 attachment folder and linked according to your Obsidian settings.
 
 - **👀 Live preview**  
-  - File-type cards open in Obsidian's own MarkdownView with full Live Preview rendering.  
-  - In read-only mode the side preview pane appears next to the editor; in edit mode the editor pane already renders markdown so the preview pane is hidden.  
-  - ↔️ Resize the panel by dragging.
+  - Built-in MarkdownRenderer preview styled by your Obsidian theme.  
+  - 🔄 Toggle preview on/off and ↔️ resize the panel by dragging.
 
 - **📖 Read-only mode**  
   - Show only the Preview pane with the editor hidden.  
@@ -78,7 +77,7 @@ While this plugin is awaiting approval in the Obsidian Community Plugins, we rec
   Delay before updating the preview on edits. Increase for very large notes.
 
 - **🔒 Read only**  
-  When enabled, the side panel shows only the Preview pane. The editor is hidden.
+  When enabled, the side panel shows only the Preview pane. The editor and the preview toggle are hidden.
 
 - **🔤 Editor font size (px)**  
   Explicit font size for the side editor. Leave unset to follow your theme when the panel first opens.

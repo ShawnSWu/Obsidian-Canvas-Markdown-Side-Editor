@@ -36,6 +36,7 @@ describe('PanelController.create', () => {
     expect(container.querySelector('.canvas-md-side-editor-panel')).toBe(refs.panelEl);
     expect(refs.panelEl.querySelector('.cmside-toolbar')).toBeTruthy();
     expect(refs.panelEl.querySelector('.cmside-title')?.textContent).toBe('Canvas MD Side Editor');
+    expect(refs.toggleBtn.classList.contains('cmside-toggle-preview-btn')).toBe(true);
     expect(refs.closeBtn.classList.contains('cmside-close-btn')).toBe(true);
     expect(refs.editorRootEl.classList.contains('cmside-editor-root')).toBe(true);
     expect(refs.previewRootEl.classList.contains('cmside-preview-root')).toBe(true);
@@ -62,10 +63,8 @@ describe('PanelController.create', () => {
 
 describe('PanelController state toggles', () => {
   it('setPreviewCollapsed toggles the preview-collapsed class', () => {
-    const { controller } = setup({}, true);
+    const { controller } = setup();
     const refs = controller.create();
-    // Default is collapsed (edit mode hides preview); flip it open first.
-    controller.setPreviewCollapsed(false);
     expect(refs.panelEl.classList.contains('preview-collapsed')).toBe(false);
     controller.setPreviewCollapsed(true);
     expect(refs.panelEl.classList.contains('preview-collapsed')).toBe(true);
@@ -73,23 +72,32 @@ describe('PanelController state toggles', () => {
     expect(refs.panelEl.classList.contains('preview-collapsed')).toBe(false);
   });
 
-  it('setReadOnly binds preview visibility 1:1 with !readOnly', () => {
-    const { controller } = setup({}, true);  // start collapsed (edit-mode default)
+  it('setReadOnly forces preview visible and adds read-only class', () => {
+    const { controller } = setup();
     const refs = controller.create();
-    // Default: edit mode → preview collapsed (hidden).
-    expect(refs.panelEl.classList.contains('preview-collapsed')).toBe(true);
-
+    controller.setPreviewCollapsed(true);
     controller.setReadOnly(true);
     expect(refs.panelEl.classList.contains('read-only')).toBe(true);
     expect(refs.panelEl.classList.contains('preview-collapsed')).toBe(false);
 
+    // Note: setReadOnly(true) clears the collapsed flag, so leaving read-only
+    // does not restore the previous collapsed state — preview stays visible.
     controller.setReadOnly(false);
     expect(refs.panelEl.classList.contains('read-only')).toBe(false);
-    expect(refs.panelEl.classList.contains('preview-collapsed')).toBe(true);
+    expect(refs.panelEl.classList.contains('preview-collapsed')).toBe(false);
   });
 });
 
 describe('PanelController button handlers', () => {
+  it('onToggle fires when toggle button is clicked', () => {
+    const { controller } = setup();
+    const refs = controller.create();
+    const cb = vi.fn();
+    controller.onToggle(cb);
+    refs.toggleBtn.click();
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+
   it('onClose fires when close button is clicked', () => {
     const { controller } = setup();
     const refs = controller.create();
@@ -322,7 +330,7 @@ describe('PanelController floating mode (issue #11)', () => {
     stubRect(refs.panelEl, { left: 100, top: 100, width: 400, height: 300 });
     persistSettings.mockClear();
 
-    refs.closeBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 200, clientY: 150 }));
+    refs.toggleBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 200, clientY: 150 }));
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 400, clientY: 400 }));
     window.dispatchEvent(new PointerEvent('pointerup'));
     await new Promise((r) => setTimeout(r, 0));
@@ -394,13 +402,13 @@ describe('PanelController.destroy', () => {
     expect(container.querySelector('.canvas-md-side-editor-panel')).toBeFalsy();
   });
 
-  it('detaches the close button click handler', () => {
+  it('detaches the toggle button click handler', () => {
     const { controller } = setup();
     const refs = controller.create();
     const cb = vi.fn();
-    controller.onClose(cb);
+    controller.onToggle(cb);
     controller.destroy();
-    refs.closeBtn.click();
+    refs.toggleBtn.click();
     expect(cb).not.toHaveBeenCalled();
   });
 });
