@@ -693,16 +693,18 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
     // Slide in
     this.panelEl.classList.add('open');
-    // Re-render shortly after opening to account for layout/transition timing
-    try {
-      const textNow = this.usingLeafHost
-        ? (this.mdLeafHost?.getValue() ?? initialForPreview)
-        : (this.cmView?.state.doc.toString() ?? initialForPreview);
-      setTimeout(() => {
-        if (this.openGeneration !== myGen) return;
-        this.renderPreview(textNow);
-      }, 80);
-    } catch {}
+    // Re-render shortly after opening to account for layout/transition
+    // timing. We deliberately use initialForPreview rather than reading
+    // from this.cmView here: in read-only mode openCmEditor is skipped,
+    // so cmView retains content from whatever card was last opened in
+    // non-read-only mode. Reading from it at +80ms would clobber the
+    // correct preview we just rendered with that stale content. If the
+    // user is editing in non-read-only, schedulePreviewRender's debounced
+    // path will reflect those edits independently of this nudge.
+    setTimeout(() => {
+      if (this.openGeneration !== myGen) return;
+      this.renderPreview(initialForPreview);
+    }, 80);
     // Focus editor for immediate typing (skip if read-only)
     if (!this.settings.readOnly) {
       try {
