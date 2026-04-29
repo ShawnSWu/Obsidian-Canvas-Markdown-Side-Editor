@@ -8,6 +8,7 @@ import { CanvasMdSideEditorSettingTab } from './ui/setting-tab';
 import { findNodeIdAtPoint } from './utils/canvas';
 import { registerCommands } from './commands/register';
 import { createEditor } from './ui/editor';
+import { MarkdownLeafHost } from './ui/markdown-leaf';
 import { hitTestNodeAt as hitTestNodeAtUtil, getCanvasNodeById as getNodeByIdUtil, readCanvasData as readCanvasDataUtil } from './utils/canvas-data';
 import { getSelectedCanvasNodeId as getSelId, tryCanvasAPIsForHit as tryAPIsHit } from './utils/canvas-selection';
 import { PreviewHelper } from './ui/preview';
@@ -45,6 +46,12 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private previewCollapsed: boolean = false;
   private previewHelper: PreviewHelper | null = null;
   private panelController: PanelController | null = null;
+  // Live Preview host for file-type canvas nodes (issue #9). Lazily created
+  // on the first file-card open so plain text-card flows pay no overhead.
+  private mdLeafHost: MarkdownLeafHost | null = null;
+  // Tracks whether the currently open card is being rendered through the
+  // MarkdownLeafHost (file card) vs. the legacy CM6 editor (text card).
+  private usingLeafHost: boolean = false;
   public settings!: CanvasMdSideEditorSettings;
 
   // Last Canvas view we attached to. Used so that when the user navigates to a
@@ -116,6 +123,20 @@ class CanvasMdSideEditorPlugin extends Plugin {
     const ref2 = this.app.workspace.on('layout-change', () => attach());
     this.registerEvent(ref1);
     this.registerEvent(ref2);
+
+    // When the leaf-hosted editor changes, schedule a preview re-render so
+    // the right-hand pane stays in sync. The 'editor-change' event fires
+    // for any markdown view in the workspace; we filter to the file we
+    // currently have embedded.
+    const refEdit = this.app.workspace.on('editor-change', (_editor, info) => {
+      if (!this.usingLeafHost) return;
+      const file = info && (info as { file?: { path?: string } }).file;
+      if (!file) return;
+      if (this.currentSourcePath && file.path === this.currentSourcePath) {
+        this.schedulePreviewRender();
+      }
+    });
+    this.registerEvent(refEdit);
   }
 
   // Save pasted images to vault and insert markdown links at cursor
@@ -606,7 +627,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
         : this.currentCanvasFile?.path ?? '';
     this.previewHelper?.setSourcePath(this.currentSourcePath);
 
-    // Load content
+    // Load content (only used by the legacy CM6 editor path; the
+    // MarkdownLeafHost reads directly from the file).
     let initial = '';
     if (node.type === 'text') {
       initial = node.text ?? '';
@@ -617,52 +639,116 @@ class CanvasMdSideEditorPlugin extends Plugin {
       }
     }
 
-    // Create or update CM view
-    if (!this.settings.readOnly) {
-      if (this.cmView) {
-        const tr = this.cmView.state.update({
-          changes: { from: 0, to: this.cmView.state.doc.length, insert: initial },
-        });
-        this.cmView.dispatch(tr);
+    // Decide which editor to use. File cards point at a real .md and can
+    // ride a real MarkdownView for full Live Preview; text cards have
+    // inline JSON content with no backing file, so they stay on the
+    // legacy CM6 path for now.
+    const fileForLeaf =
+      node.type === 'file' && typeof node.file === 'string'
+        ? this.resolveVaultFile(node.file)
+        : null;
+    const useLeaf = !this.settings.readOnly && !!fileForLeaf;
+
+    if (useLeaf && fileForLeaf) {
+      // Tear down any leftover CM6 view from a previous text-card open.
+      this.disposeCmView();
+      if (!this.mdLeafHost) this.mdLeafHost = new MarkdownLeafHost(this.app);
+      const opened = await this.mdLeafHost.open(fileForLeaf, this.editorRootEl!);
+      if (opened) {
+        this.usingLeafHost = true;
       } else {
-        this.cmView = createEditor(
-          this.editorRootEl!,
-          initial,
-          () => this.schedulePreviewRender(),
-          (files, view) => { this.handlePasteImages(files, view).catch(() => {}); }
-        );
-        // Ensure parent carries Obsidian classes for styling
-        this.editorRootEl!.classList.add('markdown-source-view', 'cm-s-obsidian', 'mod-cm6');
-        // Sync scroll with preview
-        this.cmScrollHandler = () => { this.syncPreviewScroll(); };
-        const v = this.cmView as EditorView;
-        v.scrollDOM.addEventListener('scroll', this.cmScrollHandler, { passive: true });
+        // Fall back to CM6 if the detached-leaf trick refused to work on
+        // this Obsidian build.
+        try { console.warn('CanvasMdSideEditor: live preview leaf unavailable, falling back to CM6'); } catch {}
+        await this.openCmEditor(initial);
       }
-      // Ensure clicking blank area focuses editor and places caret
-      this.setupEditorBlankClickHandler();
+    } else {
+      // Text card or read-only — drop any leaf and use the CM6 editor.
+      if (this.mdLeafHost) {
+        await this.mdLeafHost.detach();
+      }
+      this.usingLeafHost = false;
+      if (!this.settings.readOnly) {
+        await this.openCmEditor(initial);
+      }
     }
 
-    // Initial render
-    await this.renderPreview(initial);
+    // Initial preview render. For file cards, read fresh content so the
+    // preview matches what the leaf is now showing.
+    let initialForPreview = initial;
+    if (this.usingLeafHost) {
+      initialForPreview = this.mdLeafHost?.getValue() ?? initial;
+    }
+    await this.renderPreview(initialForPreview);
 
     // Render the toolbar title (static or editable depending on settings).
-    this.applyCardTitle(view, node, initial);
+    this.applyCardTitle(view, node, initialForPreview);
 
     // Slide in
     this.panelEl.classList.add('open');
     // Re-render shortly after opening to account for layout/transition timing
     try {
-      const textNow = this.cmView?.state.doc.toString() ?? initial;
+      const textNow = this.usingLeafHost
+        ? (this.mdLeafHost?.getValue() ?? initialForPreview)
+        : (this.cmView?.state.doc.toString() ?? initialForPreview);
       setTimeout(() => { this.renderPreview(textNow); }, 80);
     } catch {}
     // Focus editor for immediate typing (skip if read-only)
     if (!this.settings.readOnly) {
-      try { this.cmView?.focus(); } catch {}
+      try {
+        if (this.usingLeafHost) {
+          this.mdLeafHost?.getView()?.editor?.focus();
+        } else {
+          this.cmView?.focus();
+        }
+      } catch {}
     }
   }
 
+  // Build (or update) the legacy CM6 editor with the given content. Used by
+  // text cards and as a fallback when the live-preview leaf can't be
+  // constructed on this Obsidian build.
+  private async openCmEditor(initial: string): Promise<void> {
+    if (!this.editorRootEl) return;
+    if (this.cmView) {
+      const tr = this.cmView.state.update({
+        changes: { from: 0, to: this.cmView.state.doc.length, insert: initial },
+      });
+      this.cmView.dispatch(tr);
+    } else {
+      this.cmView = createEditor(
+        this.editorRootEl,
+        initial,
+        () => this.schedulePreviewRender(),
+        (files, view) => { this.handlePasteImages(files, view).catch(() => {}); },
+      );
+      this.editorRootEl.classList.add('markdown-source-view', 'cm-s-obsidian', 'mod-cm6');
+      this.cmScrollHandler = () => { this.syncPreviewScroll(); };
+      const v = this.cmView as EditorView;
+      v.scrollDOM.addEventListener('scroll', this.cmScrollHandler, { passive: true });
+    }
+    this.setupEditorBlankClickHandler();
+  }
+
+  private disposeCmView(): void {
+    if (this.cmView && this.cmScrollHandler) {
+      try { (this.cmView as EditorView).scrollDOM.removeEventListener('scroll', this.cmScrollHandler); } catch {}
+    }
+    if (this.cmView) {
+      try { this.cmView.destroy(); } catch {}
+      this.cmView = null;
+    }
+    this.cmScrollHandler = null;
+  }
+
   private async saveCurrentEdits(view: any) {
-    if (!this.cmView || !this.currentNodeId) return;
+    if (!this.currentNodeId) return;
+    // File cards routed through the live-preview leaf are saved by Obsidian
+    // itself (the MarkdownView is bound directly to the file). We never
+    // need to dump anything back into the canvas JSON for them since file
+    // cards only reference the file by path.
+    if (this.usingLeafHost) return;
+    if (!this.cmView) return;
     const newText = this.cmView.state.doc.toString();
     await writeNodeContentUtil(this.app, view, this.currentNode, this.currentNodeId, newText);
   }
@@ -775,6 +861,12 @@ class CanvasMdSideEditorPlugin extends Plugin {
       try { this.panelController.destroy(); } catch {}
       this.panelController = null;
     }
+    // Drop the embedded live-preview leaf (if any) before nuking the panel.
+    if (this.mdLeafHost) {
+      try { void this.mdLeafHost.detach(); } catch {}
+      this.mdLeafHost = null;
+    }
+    this.usingLeafHost = false;
     if (this.cmView && this.cmScrollHandler) {
       try { (this.cmView as EditorView).scrollDOM.removeEventListener('scroll', this.cmScrollHandler); } catch {}
     }
@@ -816,8 +908,14 @@ class CanvasMdSideEditorPlugin extends Plugin {
   
 
   private schedulePreviewRender() {
+    const debounce = this.settings?.previewDebounceMs ?? 50;
+    if (this.usingLeafHost && this.mdLeafHost) {
+      const host = this.mdLeafHost;
+      this.previewHelper?.scheduleFromText(() => host.getValue() ?? '', debounce);
+      return;
+    }
     if (!this.cmView) return;
-    this.previewHelper?.scheduleFromEditor(this.cmView, this.settings?.previewDebounceMs ?? 50);
+    this.previewHelper?.scheduleFromEditor(this.cmView, debounce);
   }
 
   private async renderPreview(text: string) {

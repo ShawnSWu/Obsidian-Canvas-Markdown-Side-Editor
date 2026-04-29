@@ -39,6 +39,19 @@ export class PreviewHelper {
     }, delay);
   }
 
+  // Same debounced render but the source text is supplied by the caller
+  // — used by the live-preview leaf path where we don't have a CM6 view
+  // reference to read from.
+  scheduleFromText(getText: () => string, delayMs: number) {
+    if (!this.container) return;
+    this.clearTimer();
+    const delay = Math.max(16, delayMs ?? 50);
+    this.timer = window.setTimeout(async () => {
+      const text = getText();
+      await this.renderText(text);
+    }, delay);
+  }
+
   async renderText(text: string) {
     if (!this.container) return;
     // Clear
