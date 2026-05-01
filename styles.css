@@ -176,6 +176,24 @@ body.cmside-headline-mode .canvas-node h1 ~ h1 {
   display: none !important;
 }
 
+/* Hide the duplicate filename Obsidian renders *inside* the card body —
+   the canvas already shows the filename as a label outside the card
+   (`.canvas-node-label`), so the in-card copy reads as redundant text.
+   `.mod-header.mod-ui` is the wrapper Obsidian inserts before the body
+   content; it carries the editable `.inline-title` (filename) and the
+   `.metadata-container` (Properties), neither of which belong in
+   headline view. We deliberately do NOT hide `.canvas-node-label`
+   itself, so the canvas's built-in filename label stays visible. */
+body.cmside-headline-mode .canvas-node .mod-header,
+body.cmside-headline-mode .canvas-node .inline-title,
+body.cmside-headline-mode .canvas-node .metadata-container,
+body.cmside-headline-mode .canvas-node .markdown-embed-title,
+body.cmside-headline-mode .canvas-node .file-embed-title,
+body.cmside-headline-mode .canvas-node .embed-title,
+body.cmside-headline-mode .canvas-node .markdown-embed-link {
+  display: none !important;
+}
+
 /* Establish the card's content area as a CSS container so font sizes can
    be expressed in `cqi` (1% of container inline size). This makes the
    Title/Subtitle scale with the card itself — and because canvas zoom is
@@ -234,6 +252,15 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) :is(
   .internal-embed, .external-link, .footnotes
 ),
 body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) h1 ~ h1 {
+  display: revert !important;
+}
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .mod-header,
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .inline-title,
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .metadata-container,
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-title,
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .file-embed-title,
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .embed-title,
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-link {
   display: revert !important;
 }
 body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-view,
