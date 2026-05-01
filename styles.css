@@ -240,6 +240,19 @@ body.cmside-headline-mode .canvas-node h1 {
   overflow: hidden !important;
 }
 
+/* When a card has no H1, headline mode would render an empty card. Show
+   a faint placeholder so the user can tell the card is intentionally
+   blank in this view (and that they need to add an H1 to give it a
+   title). Uses CSS `:has()`, supported by Obsidian's Electron runtime. */
+body.cmside-headline-mode .canvas-node .markdown-preview-sizer:not(:has(h1))::before {
+  content: "No headline";
+  color: var(--text-faint);
+  font-style: italic;
+  font-size: clamp(11px, calc(var(--cmside-h1-size, 22) * 0.5cqi), 60px);
+  text-align: center;
+  opacity: 0.7;
+}
+
 /* Don't enforce headline view while the card is in inline-edit mode so the
    user can still see / edit the full markdown if they double-click. */
 body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) :is(
@@ -262,6 +275,9 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .file-embed-tit
 body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .embed-title,
 body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-link {
   display: revert !important;
+}
+body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-sizer::before {
+  content: none !important;
 }
 body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-view,
 body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-sizer,
