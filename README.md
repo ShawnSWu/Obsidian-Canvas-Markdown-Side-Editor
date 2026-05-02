@@ -64,6 +64,8 @@ Obsidian Canvas is great for visual thinking, but editing Markdown cards directl
 
 This plugin is currently **awaiting approval in the Obsidian Community Plugins directory**. Until that lands, install via [BRAT](https://github.com/TfTHacker/obsidian42-brat) — it auto-fetches future updates.
 
+https://github.com/user-attachments/assets/82719127-f450-49e9-b99e-b0700451615d
+
 1. In Obsidian: Settings → **Community Plugins** → enable third-party plugins.
 2. Settings → **Community Plugins** → **Browse** → search "BRAT" → Install and enable.
 3. Settings → **BRAT** → **Add Beta plugin**.
@@ -98,7 +100,7 @@ Open Settings → **Community Plugins** → **Canvas Markdown Side Editor**.
 | Editor font size (px) | theme | Override editor font size. Leave blank to follow your theme. |
 | Preview font size (px) | theme | Override preview font size. Leave blank to follow your theme. |
 
-<img width="1083" alt="Settings tab" src="https://github.com/user-attachments/assets/b70444cb-c9fe-48a2-bfca-ab19f03ba868" />
+<img width="1083" alt="Settings tab" src="https://github.com/user-attachments/assets/32db9f46-3dd2-4907-8b95-ffbed2cba597" />
 
 ---
 
