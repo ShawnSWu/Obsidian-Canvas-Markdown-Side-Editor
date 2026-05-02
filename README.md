@@ -1,140 +1,152 @@
-# ✨ Canvas MD Side Editor
+# Canvas Markdown Side Editor
 
-If you’re a Canvas enthusiast like me, you won’t want to miss this plugin.  
-It allows you to open a right-side Markdown editor directly from the **“Big picture”** 🪐 view of your Canvas, so you can ✍️ edit without zooming in.  
-With ⚡ live preview and 💾 auto-save, you can format while writing, move smoothly between cards, and keep your thoughts flowing without interruption.
+[![Release](https://img.shields.io/github/v/release/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor)](https://github.com/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor/releases)
+[![Downloads](https://img.shields.io/github/downloads/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor/total)](https://github.com/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor/releases)
+[![License](https://img.shields.io/github/license/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor)](LICENSE)
+[![Obsidian](https://img.shields.io/badge/Obsidian-1.1.0%2B-7c3aed)](https://obsidian.md)
 
-<img width="1000" height="995" alt="image" src="https://github.com/user-attachments/assets/529bf519-1e51-463e-bad9-13d65fe83440" />
+Edit Canvas Markdown cards from a side panel — live preview, autosave, and no zooming in and out of cramped cards.
 
-Edit Canvas Markdown cards from a right-side editor with live preview and auto-save.  
-Click a Canvas card and start typing – as fast and natural as editing a normal note.
-
-![ezgif-49c7f29a5c95cc](https://github.com/user-attachments/assets/5836c7ad-45af-420c-bfcd-fb2ec503ada1)
+<img width="1000" alt="Canvas Markdown Side Editor — overview" src="https://github.com/user-attachments/assets/529bf519-1e51-463e-bad9-13d65fe83440" />
 
 ---
 
-## 🆕 What's new
+## Demo
 
-### 🪟 Dock anywhere — Right / Left / Top / Bottom / Floating
+### Side editor — open, edit, autosave
 
-Pin the side editor to any edge of your Canvas, or pop it into a fully **floating** panel
-you can drag around and resize from the corner. The plugin remembers each dock's size
-and the floating panel's position, so it always reopens exactly where you left it.
+https://github.com/user-attachments/assets/b2075ff8-2327-440d-970a-5ca29423bcf1
 
-<!-- screenshot: dock-positions -->
+> Click any Canvas card and start typing. Switching cards autosaves. The panel can dock right, left, top, bottom, or float.
 
-### 🏷️ Headline mode — turn your Canvas into a board of titles
+### Headline mode — turn the canvas into a board of titles
 
-Flip on **Headline mode** and every Markdown card visually collapses to just its first
-`# H1`. Your "big picture" 🪐 becomes an instantly scannable map of ideas, while the full
-content stays one click away through the side editor. Title size is tunable
-(5 – 60 % of card width) so headlines stay readable at any zoom level.
+https://github.com/user-attachments/assets/48b1fe0d-a91f-469d-9d64-2fa90e4013ab
 
-<!-- screenshot: headline-mode -->
+> Toggle Headline mode in settings to collapse every card to its first `# H1`. Cards without a title show a faint "No headline" placeholder so you can spot what's missing.
 
 ---
 
-## 🌈 Why this plugin?
+## Why this plugin?
 
-Obsidian Canvas is fantastic for visual thinking — but editing Markdown cards directly inside Canvas can feel cramped and clunky.  
-You often have to zoom in and out, double-click small cards, and switch focus repeatedly. This breaks the flow of writing.
+Obsidian Canvas is great for visual thinking, but editing Markdown cards directly inside Canvas is cramped — zoom in, double-click a small card, lose context, repeat. Canvas Markdown Side Editor brings a full Obsidian editor next to the Canvas so you can write comfortably without leaving the big-picture view.
 
-**Canvas MD Side Editor** was created to fix exactly that.  
-It brings the full power of Obsidian's editor to your Canvas view, letting you write comfortably in a side panel, with **live preview**, **auto-save**, and **no context switching**.  
-
-The goal is simple:  
-> ✍️ *Write Markdown with the comfort of a full editor, while keeping the “big picture” in sight.* 🪐
+> *Write Markdown with the comfort of a full editor, while keeping the big picture in sight.*
 
 ---
 
-## 🌟 Features
+## Features
 
-- **🪟 Flexible docking & floating panel**  
-  - Dock the side editor on the **Right**, **Left**, **Top**, or **Bottom** of the Canvas — or detach it as a **Floating** panel.  
-  - 🖱️ Drag the floating panel anywhere; resize it from the corner. Position and size are persisted per dock.
-
-- **🏷️ Headline mode** *(issue #13)*  
-  - Vault-wide toggle that collapses every Canvas card to just its first `# H1`.  
-  - Get a clean "table of contents" view of your Canvas; full content remains editable through the side editor.  
-  - 🔠 Headline size is configurable as a percentage of card width (5 – 60 %).
-
-- **⚡ Open-and-edit instantly**  
-  - 🖱️ Click a Canvas Text card or a File card pointing to a `.md` file to open the side editor automatically.
-
-- **💾 Auto-save**  
-  - Changes are saved when switching cards or clicking the Canvas background.
-
-- **🔒 Auto-close while editing inside Canvas**  
-  - If you focus or type in a Canvas card's own editor, pending changes in the side editor are saved ✅ and the side panel closes automatically to avoid conflicting edits.
-
-- **🖼️ Paste images into the side editor**  
-  - Paste screenshots or images directly. Files are saved into your preferred 📂 attachment folder and linked according to your Obsidian settings.
-
-- **👀 Live preview**  
-  - Built-in MarkdownRenderer preview styled by your Obsidian theme.  
-  - 🔄 Toggle preview on/off and ↔️ resize the panel by dragging.
-
-- **📖 Read-only mode**  
-  - Show only the Preview pane with the editor hidden.  
-  - Useful when you want a clean reading panel.  
-  - ⚙️ Enable in *Settings → Community Plugins → Canvas MD Side Editor → Read only*.
-
-- **⌨️ Command palette**  
-  - `Canvas Side Editor: Toggle Preview` — bind a hotkey to flip the preview pane on or off.
----
-
-## 📦 Installation
-
-## 🧭 Option 1 — Install via BRAT (Recommand before approval)
-
-While this plugin is awaiting approval in the Obsidian Community Plugins, we recommend installing it via BRAT for automatic updates:
-
-1. Enable third‑party plugins: Settings → `Community Plugins` → Turn on.
-2. Install BRAT: Settings → `Community Plugins` → `Browse` → search “BRAT” → Install and enable.
-3. Open BRAT settings: Settings → BRAT → Add Beta plugin.
-4. Paste the repository URL: `https://github.com/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor`
-5. Confirm. BRAT will automatically download and install the plugin, and fetch future updates.
-
-👉 Now, Try clicking a Canvas card now and start typing — it’s that smooth 🚀
+- **Flexible docking & floating panel** — dock the side editor on the right, left, top, or bottom of the Canvas, or detach it as a floating panel you can drag and resize. Position and size persist per dock.
+- **Headline mode** *(issue #13)* — vault-wide toggle that collapses every Canvas card to its first `# H1`. Get a clean "table of contents" view; full content stays editable through the side editor. Headline size is tunable as a percentage of card width (5–60%).
+- **Open-and-edit instantly** — clicking a Canvas Text card, or a File card pointing to a `.md` file, opens the side editor automatically.
+- **Auto-save** — saves on card switch or when you click the Canvas background.
+- **Auto-close while editing inside Canvas** — if you focus a Canvas card's own editor, pending changes save and the side panel closes to avoid edit conflicts.
+- **Paste images** — paste screenshots into the side editor; files land in your configured attachment folder and are linked according to your Obsidian settings.
+- **Live preview** — built-in MarkdownRenderer, themed by Obsidian. Toggle preview on/off; resize panes by dragging.
+- **Read-only mode** — preview-only view with the editor hidden. Useful for a clean reading panel.
+- **Command palette** — `Canvas Side Editor: Toggle Preview` is bindable to a hotkey.
 
 ---
 
+## Quick Start
 
-## ⚙️ Settings
-<img width="1083" height="695" alt="image" src="https://github.com/user-attachments/assets/b70444cb-c9fe-48a2-bfca-ab19f03ba868" />
-
-- **🪟 Dock position** *(issue #11)*  
-  Where the side panel lives: **Right** (default), **Left**, **Top**, **Bottom**, or **Floating**. Floating mode lets you drag the panel anywhere and resize it from the corner; position and size are persisted.
-
-- **📏 Default panel width**  
-  Initial width when docked **left** or **right** (in pixels). Drag the panel edge to resize; the width is remembered.
-
-- **📐 Default panel height**  
-  Initial height when docked **top** or **bottom** (in pixels). Drag the panel edge to resize; the height is remembered.
-
-- **⏱️ Preview debounce (ms)**  
-  Delay before updating the preview on edits. Increase for very large notes.
-
-- **🔒 Read only**  
-  When enabled, the side panel shows only the Preview pane. The editor and the preview toggle are hidden.
-
-- **🏷️ Headline mode** *(issue #13)*  
-  Vault-wide toggle that collapses every Canvas card to its first `# H1`. Turn it off to restore normal cards.
-
-- **🔠 Headline title size**  
-  Size of the headline title in headline mode, as a percentage of the card's width (5 – 60). Bigger value → bigger text.
-
-- **🔤 Editor font size (px)**  
-  Explicit font size for the side editor. Leave unset to follow your theme when the panel first opens.
-
-- **🔡 Preview font size (px)**  
-  Explicit font size for the preview pane. Leave unset to follow your theme when the panel first opens.
+1. [Install via BRAT](#option-1--brat-recommended-while-awaiting-obsidian-approval).
+2. Open a Canvas in Obsidian.
+3. Click any Canvas Text card, or a File card linking to a `.md` file. The side editor opens.
+4. Type. Click another card, or the Canvas background, to autosave.
 
 ---
 
-## 🖥️ Compatibility
+## Installation
 
-- Requires Obsidian `minAppVersion >= 1.1.0`.  
-- 🖥️ Desktop focused (`isDesktopOnly: true`).
+### Option 1 — BRAT (recommended while awaiting Obsidian approval)
+
+This plugin is currently **awaiting approval in the Obsidian Community Plugins directory**. Until that lands, install via [BRAT](https://github.com/TfTHacker/obsidian42-brat) — it auto-fetches future updates.
+
+1. In Obsidian: Settings → **Community Plugins** → enable third-party plugins.
+2. Settings → **Community Plugins** → **Browse** → search "BRAT" → Install and enable.
+3. Settings → **BRAT** → **Add Beta plugin**.
+4. Paste the repo URL: `https://github.com/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor`
+5. Confirm. BRAT installs the plugin and pulls updates automatically.
+
+### Option 2 — Community Plugins (once approved)
+
+Settings → **Community Plugins** → **Browse** → search "Canvas Markdown Side Editor" → Install → Enable.
+
+> *Pending Obsidian directory approval.*
+
+### Option 3 — Manual
+
+Download `main.js`, `styles.css`, and `manifest.json` from the latest [Release](https://github.com/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor/releases) and drop them into `<vault>/.obsidian/plugins/canvas-markdown-side-editor/`. Reload Obsidian and enable the plugin.
 
 ---
+
+## Configuration
+
+Open Settings → **Community Plugins** → **Canvas Markdown Side Editor**.
+
+| Setting | Default | What it does |
+|---|---|---|
+| Dock position *(issue #11)* | Right | Right / Left / Top / Bottom / Floating. Floating panels remember position and size. |
+| Default panel width | 480 px | Initial width when docked left or right. Drag the panel edge to resize; the width is remembered. |
+| Default panel height | 360 px | Initial height when docked top or bottom. Drag the panel edge to resize; the height is remembered. |
+| Preview debounce | 80 ms | Delay before the preview re-renders on edits. Increase for very large notes. |
+| Read only | off | Hide the editor; show the preview pane only. |
+| Headline mode *(issue #13)* | off | Collapse every Canvas card to its first `# H1`. |
+| Headline title size | 22 | H1 size as a percentage of card width (5–60). Bigger value → bigger text. |
+| Editor font size (px) | theme | Override editor font size. Leave blank to follow your theme. |
+| Preview font size (px) | theme | Override preview font size. Leave blank to follow your theme. |
+
+<img width="1083" alt="Settings tab" src="https://github.com/user-attachments/assets/b70444cb-c9fe-48a2-bfca-ab19f03ba868" />
+
+---
+
+## Commands
+
+| Command | Default hotkey | Description |
+|---|---|---|
+| `Canvas Side Editor: Toggle Preview` | _unbound_ | Flip the preview pane on or off. |
+
+Bind any command to a hotkey from Settings → **Hotkeys**.
+
+---
+
+## Compatibility
+
+- Requires Obsidian `1.1.0` or later.
+- Desktop only (`isDesktopOnly: true`).
+
+---
+
+## Troubleshooting
+
+- **Side editor doesn't open** — confirm the card is a Text card, or a File card linking to a `.md` file. Image, PDF, and link cards aren't supported.
+- **Headline mode shows an empty card** — that card has no `# H1`. A faint "No headline" placeholder appears so you can spot which cards still need a title.
+- **Floating panel opens off-screen after a monitor change** — Settings → reset Dock position to Right, then switch back to Floating.
+
+---
+
+## Changelog
+
+See [GitHub Releases](https://github.com/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor/releases) for version-by-version notes.
+
+---
+
+## Contributing
+
+Issues and pull requests welcome at [github.com/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor/issues](https://github.com/ShawnSWu/Obsidian-Canvas-Markdown-Side-Editor/issues).
+
+Local development:
+
+```bash
+npm install
+npm run dev    # esbuild watch
+npm test       # vitest
+```
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
