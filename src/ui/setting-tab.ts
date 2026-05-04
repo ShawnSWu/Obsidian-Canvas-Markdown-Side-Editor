@@ -102,9 +102,7 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
         dd.setValue(this.plugin.settings.viewMode);
         dd.onChange(async (val) => {
           const mode = val as ViewMode;
-          this.plugin.settings.viewMode = mode;
-          await this.plugin.saveData(this.plugin.settings);
-          this.plugin.setViewMode?.(mode);
+          await this.plugin.setViewMode?.(mode);
         });
       });
 

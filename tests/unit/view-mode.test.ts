@@ -41,3 +41,23 @@ describe('migrateLegacyReadOnly', () => {
     expect(['editor', 'both', 'preview']).toContain(m);
   });
 });
+
+describe('migrateLegacyReadOnly + DEFAULT_SETTINGS merge ordering (issue #16 regression)', () => {
+  it('produces viewMode=preview when raw data has readOnly=true even if defaults define viewMode=both', () => {
+    // Simulate the order onload uses: migrate raw FIRST, then merge with defaults.
+    const raw: Record<string, unknown> = { readOnly: true };
+    migrateLegacyReadOnly(raw);
+    const DEFAULTS = { viewMode: 'both' as const, foo: 1 };
+    const merged = Object.assign({}, DEFAULTS, raw);
+    expect(merged.viewMode).toBe('preview');
+    expect('readOnly' in merged).toBe(false);
+  });
+
+  it('respects an explicit viewMode in raw data over the default', () => {
+    const raw: Record<string, unknown> = { viewMode: 'editor' };
+    migrateLegacyReadOnly(raw);
+    const DEFAULTS = { viewMode: 'both' as const };
+    const merged = Object.assign({}, DEFAULTS, raw);
+    expect(merged.viewMode).toBe('editor');
+  });
+});

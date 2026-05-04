@@ -85,17 +85,19 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
   async onload() {
     // Load settings and register settings tab
+    let raw: Record<string, unknown> = {};
     try {
-      const data = (await this.loadData()) as Partial<CanvasMdSideEditorSettings> | null;
-      this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
-    } catch {
-      this.settings = { ...DEFAULT_SETTINGS };
-    }
+      const data = (await this.loadData()) as Record<string, unknown> | null;
+      if (data && typeof data === 'object') raw = data;
+    } catch {}
 
     // Issue #16 migration: collapse legacy `readOnly` boolean into
-    // `viewMode`. Idempotent; running on already-migrated data is a no-op.
-    const hadReadOnly = 'readOnly' in this.settings;
-    migrateLegacyReadOnly(this.settings as unknown as Record<string, unknown>);
+    // `viewMode` BEFORE merging with DEFAULT_SETTINGS, so the default
+    // `viewMode: 'both'` doesn't mask a legacy `readOnly: true` save.
+    // Idempotent; running on already-migrated data is a no-op.
+    const hadReadOnly = 'readOnly' in raw;
+    migrateLegacyReadOnly(raw);
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, raw) as CanvasMdSideEditorSettings;
     if (hadReadOnly) {
       try { await this.saveData(this.settings); } catch {}
     }

@@ -12,7 +12,7 @@ function setup(overrides: Partial<CanvasMdSideEditorSettings> = {}) {
   const plugin = {
     settings,
     saveData: vi.fn(async () => {}),
-    setViewMode: vi.fn(async () => {}),
+    setViewMode: vi.fn(async (mode: any) => { settings.viewMode = mode; }),
     applyFontSizes: vi.fn(),
     applyDockPosition: vi.fn(),
   };
