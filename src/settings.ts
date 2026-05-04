@@ -1,3 +1,5 @@
+import type { ViewMode } from './view-mode';
+
 export type DockPosition = 'left' | 'right' | 'top' | 'bottom' | 'floating';
 
 export interface CanvasMdSideEditorSettings {
@@ -6,7 +8,8 @@ export interface CanvasMdSideEditorSettings {
   previewDebounceMs: number;
   editorFontSize: number | null;   // px, null = follow theme
   previewFontSize: number | null;  // px, null = follow theme
-  readOnly?: boolean;              // when true, show only preview (no editor)
+  readOnly?: boolean;              // LEGACY — removed in Task 8 after migration
+  viewMode: ViewMode;              // single source of truth for issue #16
   dockPosition?: DockPosition;     // panel docking edge (issue #11)
   // Floating-mode persisted state (issue #11). Px values relative to the
   // canvas containerEl. Updated on drag-end and resize-end.
@@ -32,6 +35,7 @@ export const DEFAULT_SETTINGS: CanvasMdSideEditorSettings = {
   editorFontSize: null,
   previewFontSize: null,
   readOnly: false,
+  viewMode: 'both',
   dockPosition: 'right',
   floatingX: 80,
   floatingY: 80,
