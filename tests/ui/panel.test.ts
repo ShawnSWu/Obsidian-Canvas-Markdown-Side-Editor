@@ -15,12 +15,12 @@ window.getComputedStyle = ((el: Element) => {
   }) as CSSStyleDeclaration;
 }) as typeof window.getComputedStyle;
 
-function setup(overrides: Partial<CanvasMdSideEditorSettings> = {}, previewCollapsed = false) {
+function setup(overrides: Partial<CanvasMdSideEditorSettings> = {}) {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const settings: CanvasMdSideEditorSettings = { ...DEFAULT_SETTINGS, ...overrides };
   const persistSettings = vi.fn(async () => {});
-  const controller = new PanelController(container, () => settings, persistSettings, previewCollapsed);
+  const controller = new PanelController(container, () => settings, persistSettings);
   return { container, controller, settings, persistSettings };
 }
 

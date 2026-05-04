@@ -1,10 +1,9 @@
 import { EditorView } from '@codemirror/view';
-import { Notice, Plugin, TFile, WorkspaceLeaf, addIcon, setIcon } from 'obsidian';
+import { Notice, Plugin, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
 import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS } from './settings';
 import { migrateLegacyReadOnly, nextViewMode, type ViewMode } from './view-mode';
 import type { CanvasNode, CanvasData, CanvasLikeView, CanvasLike } from './types';
 import { buildRenamePath, extractTitleFromText, patchFirstLineWithTitle } from './utils/card-title';
-import { iconOneCol, iconTwoCols } from './ui/icons';
 import { CanvasMdSideEditorSettingTab } from './ui/setting-tab';
 import { findNodeIdAtPoint } from './utils/canvas';
 import { registerCommands } from './commands/register';
@@ -80,7 +79,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
   // of order, so an earlier-issued call's resume could clobber a
   // later-issued call's render — including writing the wrong content to
   // the wrong card on save (CM6 mode) or just showing the wrong preview
-  // (read-only mode). Each call captures its own myGen on entry and
+  // (preview-only view mode). Each call captures its own myGen on entry and
   // bails after every await if a newer call has bumped the counter.
   private openGeneration: number = 0;
 
@@ -102,12 +101,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
     }
 
     this.addSettingTab(new CanvasMdSideEditorSettingTab(this.app, this));
-
-    // Register custom icons for toggle button
-    try {
-      addIcon('cmside-two-cols', iconTwoCols);
-      addIcon('cmside-one-col', iconOneCol);
-    } catch {}
 
     // Apply headline-mode body class on load so it covers any canvas that's
     // already open before our event listeners fire.
@@ -591,7 +584,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
         container,
         () => this.settings,
         (s) => this.saveData(s),
-        false, // legacy initial-collapsed arg — unused now; Task 8 drops it from the ctor.
       );
       const refs = this.panelController.create();
       this.panelEl = refs.panelEl;
@@ -721,17 +713,17 @@ class CanvasMdSideEditorPlugin extends Plugin {
     this.panelEl.classList.add('open');
     // Re-render shortly after opening to account for layout/transition
     // timing. We deliberately use initialForPreview rather than reading
-    // from this.cmView here: in read-only mode openCmEditor is skipped,
+    // from this.cmView here: in preview-only view mode openCmEditor is skipped,
     // so cmView retains content from whatever card was last opened in
-    // non-read-only mode. Reading from it at +80ms would clobber the
+    // editor or both view mode. Reading from it at +80ms would clobber the
     // correct preview we just rendered with that stale content. If the
-    // user is editing in non-read-only, schedulePreviewRender's debounced
+    // user is editing in editor or both view mode, schedulePreviewRender's debounced
     // path will reflect those edits independently of this nudge.
     setTimeout(() => {
       if (this.openGeneration !== myGen) return;
       this.renderPreview(initialForPreview);
     }, 80);
-    // Focus editor for immediate typing (skip if read-only)
+    // Focus editor for immediate typing (skip in preview-only view mode)
     if (this.settings.viewMode !== 'preview') {
       try {
         if (this.usingLeafHost) {
