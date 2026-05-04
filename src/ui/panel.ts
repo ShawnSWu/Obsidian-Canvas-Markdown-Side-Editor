@@ -1,4 +1,5 @@
 import type { CanvasMdSideEditorSettings, DockPosition } from '../settings';
+import type { ViewMode } from '../view-mode';
 
 const DOCK_CLASSES: Record<DockPosition, string> = {
   left: 'cmside-dock-left',
@@ -23,6 +24,7 @@ export class PanelController {
   private persistSettings: (s: CanvasMdSideEditorSettings) => Promise<void> | void;
   private previewCollapsed: boolean;
   private readOnly: boolean = false;
+  private viewMode: ViewMode = 'both';
   private dockPosition: DockPosition = 'right';
 
   private panelEl: HTMLElement | null = null;
@@ -116,16 +118,14 @@ export class PanelController {
     this.cornerResizerEl = cornerResizer;
     this.toolbarEl = toolbar;
 
-    // Initialize preview collapsed UI
+    // Initialize view mode from settings (issue #16). This is the single
+    // source of truth for editor/preview pane visibility.
+    const initialMode: ViewMode = (this.getSettings()?.viewMode ?? 'both') as ViewMode;
+    this.viewMode = initialMode;
+    panel.setAttribute('data-view-mode', initialMode);
+    // Legacy class kept in sync briefly so tasks 5–7 can land without flicker.
     if (this.previewCollapsed) panel.classList.add('preview-collapsed');
-    // Ensure layout reflects collapsed state (editor should occupy full width)
     this.applyCollapsedLayout();
-
-    // Apply initial read-only from settings if available
-    try {
-      const s = this.getSettings();
-      this.setReadOnly(!!s?.readOnly);
-    } catch {}
 
     // Initialize and apply font sizes from settings (capture theme defaults if unset or legacy <= 0)
     try {
@@ -183,27 +183,33 @@ export class PanelController {
   }
 
   // UI state
-  setPreviewCollapsed(collapsed: boolean) {
+
+  // Single setter for the 3-way view mode (issue #16). Drives layout via
+  // the `data-view-mode` attribute on the panel element; CSS does the rest.
+  setViewMode(mode: ViewMode) {
+    this.viewMode = mode;
     if (!this.panelEl) return;
-    if (this.readOnly) collapsed = false; // force visible in read-only
-    this.previewCollapsed = !!collapsed;
-    if (this.previewCollapsed) this.panelEl.classList.add('preview-collapsed');
-    else this.panelEl.classList.remove('preview-collapsed');
-    this.applyCollapsedLayout();
+    this.panelEl.setAttribute('data-view-mode', mode);
+    // Keep the legacy classes in sync until Task 8 removes them. CSS no
+    // longer keys off these classes after Task 4 ships, but other code
+    // paths (tests, third-party CSS) may still observe them.
+    this.panelEl.classList.toggle('preview-collapsed', mode === 'editor');
+    this.panelEl.classList.toggle('read-only', mode === 'preview');
   }
 
+  // LEGACY — removed in Task 8 after main.ts migrates to setViewMode.
+  setPreviewCollapsed(collapsed: boolean) {
+    this.previewCollapsed = !!collapsed;
+    // Honor read-only override: when read-only is on, force preview-only.
+    if (this.readOnly) { this.setViewMode('preview'); return; }
+    this.setViewMode(this.previewCollapsed ? 'editor' : 'both');
+  }
+
+  // LEGACY — removed in Task 8 after main.ts migrates to setViewMode.
   setReadOnly(ro: boolean) {
     this.readOnly = !!ro;
-    if (!this.panelEl) return;
-    if (this.readOnly) {
-      this.panelEl.classList.add('read-only');
-      // ensure preview is visible and layout updated
-      this.setPreviewCollapsed(false);
-    } else {
-      this.panelEl.classList.remove('read-only');
-      // restore layout based on current collapsed state
-      this.setPreviewCollapsed(this.previewCollapsed);
-    }
+    if (this.readOnly) { this.setViewMode('preview'); return; }
+    this.setViewMode(this.previewCollapsed ? 'editor' : 'both');
   }
 
   private applyCollapsedLayout() {

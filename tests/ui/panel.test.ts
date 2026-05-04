@@ -61,30 +61,32 @@ describe('PanelController.create', () => {
   });
 });
 
-describe('PanelController state toggles', () => {
-  it('setPreviewCollapsed toggles the preview-collapsed class', () => {
+describe('PanelController setViewMode', () => {
+  it('writes data-view-mode="editor" and hides preview pane', () => {
     const { controller } = setup();
     const refs = controller.create();
-    expect(refs.panelEl.classList.contains('preview-collapsed')).toBe(false);
-    controller.setPreviewCollapsed(true);
-    expect(refs.panelEl.classList.contains('preview-collapsed')).toBe(true);
-    controller.setPreviewCollapsed(false);
-    expect(refs.panelEl.classList.contains('preview-collapsed')).toBe(false);
+    controller.setViewMode('editor');
+    expect(refs.panelEl.getAttribute('data-view-mode')).toBe('editor');
   });
 
-  it('setReadOnly forces preview visible and adds read-only class', () => {
+  it('writes data-view-mode="both" and shows both panes', () => {
     const { controller } = setup();
     const refs = controller.create();
-    controller.setPreviewCollapsed(true);
-    controller.setReadOnly(true);
-    expect(refs.panelEl.classList.contains('read-only')).toBe(true);
-    expect(refs.panelEl.classList.contains('preview-collapsed')).toBe(false);
+    controller.setViewMode('both');
+    expect(refs.panelEl.getAttribute('data-view-mode')).toBe('both');
+  });
 
-    // Note: setReadOnly(true) clears the collapsed flag, so leaving read-only
-    // does not restore the previous collapsed state — preview stays visible.
-    controller.setReadOnly(false);
-    expect(refs.panelEl.classList.contains('read-only')).toBe(false);
-    expect(refs.panelEl.classList.contains('preview-collapsed')).toBe(false);
+  it('writes data-view-mode="preview" and hides editor pane', () => {
+    const { controller } = setup();
+    const refs = controller.create();
+    controller.setViewMode('preview');
+    expect(refs.panelEl.getAttribute('data-view-mode')).toBe('preview');
+  });
+
+  it('applies initial viewMode from settings on create', () => {
+    const { controller } = setup({ viewMode: 'preview' });
+    const refs = controller.create();
+    expect(refs.panelEl.getAttribute('data-view-mode')).toBe('preview');
   });
 });
 
