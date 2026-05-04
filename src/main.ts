@@ -1,6 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { Notice, Plugin, TFile, WorkspaceLeaf, addIcon, setIcon } from 'obsidian';
 import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS } from './settings';
+import { migrateLegacyReadOnly } from './view-mode';
 import type { CanvasNode, CanvasData, CanvasLikeView, CanvasLike } from './types';
 import { buildRenamePath, extractTitleFromText, patchFirstLineWithTitle } from './utils/card-title';
 import { iconOneCol, iconTwoCols } from './ui/icons';
@@ -90,6 +91,14 @@ class CanvasMdSideEditorPlugin extends Plugin {
       this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
     } catch {
       this.settings = { ...DEFAULT_SETTINGS };
+    }
+
+    // Issue #16 migration: collapse legacy `readOnly` boolean into
+    // `viewMode`. Idempotent; running on already-migrated data is a no-op.
+    const hadReadOnly = 'readOnly' in this.settings;
+    migrateLegacyReadOnly(this.settings as unknown as Record<string, unknown>);
+    if (hadReadOnly) {
+      try { await this.saveData(this.settings); } catch {}
     }
 
     this.addSettingTab(new CanvasMdSideEditorSettingTab(this.app, this));
