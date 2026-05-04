@@ -894,6 +894,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
       try { this.panelController.destroy(); } catch {}
       this.panelController = null;
     }
+    // Drop the toolbar icon callback so it doesn't retain a detached <button>.
+    this.applyToolbarIcon = null;
     // Drop the embedded live-preview leaf (if any) before nuking the panel.
     if (this.mdLeafHost) {
       try { void this.mdLeafHost.detach(); } catch {}
