@@ -17,13 +17,14 @@ export function nextViewMode(curr: ViewMode): ViewMode {
 }
 
 // One-time settings migration for users upgrading from a build that had
-// the legacy `readOnly` boolean. Idempotent: safe to call on already-
+// the legacy `readOnly` boolean. Mutates `s` in place and returns the
+// same object (not a copy). Idempotent: safe to call on already-
 // migrated settings.
 export function migrateLegacyReadOnly<T extends Record<string, unknown>>(
   s: T,
 ): T & { viewMode: ViewMode } {
   if (s.viewMode == null) {
-    s.viewMode = s.readOnly === true ? 'preview' : 'both';
+    (s as Record<string, unknown>).viewMode = s.readOnly === true ? 'preview' : 'both';
   }
   delete (s as { readOnly?: boolean }).readOnly;
   return s as T & { viewMode: ViewMode };
