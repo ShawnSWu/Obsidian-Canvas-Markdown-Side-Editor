@@ -141,7 +141,6 @@ If your plugin does not need CSS, delete this file.
   cursor: pointer;
 }
 .canvas-md-side-editor-panel .cmside-toggle-preview-btn { width: 24px; padding: 0; display: grid; place-items: center; }
-.canvas-md-side-editor-panel .cmside-actions .cmside-icon { width: 14px; height: 14px; display: block; }
 .canvas-md-side-editor-panel .cmside-close-btn:hover {
   background: var(--background-modifier-hover);
 }
