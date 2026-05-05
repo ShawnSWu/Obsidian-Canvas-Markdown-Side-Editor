@@ -12,6 +12,7 @@ import { MarkdownLeafHost } from './ui/markdown-leaf';
 import { hitTestNodeAt as hitTestNodeAtUtil, getCanvasNodeById as getNodeByIdUtil, readCanvasData as readCanvasDataUtil } from './utils/canvas-data';
 import { getSelectedCanvasNodeId as getSelId, tryCanvasAPIsForHit as tryAPIsHit } from './utils/canvas-selection';
 import { PreviewHelper } from './ui/preview';
+import { attachPreviewLinkInterop } from './ui/preview-link-interop';
 import { PanelController } from './ui/panel';
 import { writeNodeContent as writeNodeContentUtil } from './utils/canvas-write';
 
@@ -593,6 +594,12 @@ class CanvasMdSideEditorPlugin extends Plugin {
       this.previewRootEl = refs.previewRootEl;
       if (!this.previewHelper) this.previewHelper = new PreviewHelper(this.app, this);
       this.previewHelper.setContainer(this.previewRootEl!);
+      attachPreviewLinkInterop({
+        app: this.app,
+        plugin: this,
+        container: this.previewRootEl!,
+        getSourcePath: () => this.currentSourcePath,
+      });
 
       // Toolbar icon + tooltip per current viewMode (issue #16).
       const ICONS: Record<ViewMode, string> = {
