@@ -1,11 +1,12 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type { CanvasMdSideEditorSettings } from '../settings';
+import type { ViewMode } from '../view-mode';
 
 // Minimal plugin surface used by this settings tab
 interface CanvasMdSideEditorPluginLike {
   settings: CanvasMdSideEditorSettings;
   saveData(data: unknown): Promise<void>;
-  setReadOnly?(v: boolean): void;
+  setViewMode?(mode: ViewMode): Promise<void>;
   applyFontSizes?(): void;
   refreshCardTitle?(): void;
   applyDockPosition?(): void;
@@ -92,14 +93,16 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('Read only')
-      .setDesc('When enabled, the side panel shows only the Preview pane (no editor).')
-      .addToggle((tg) => {
-        tg.setValue(!!this.plugin.settings.readOnly);
-        tg.onChange(async (val) => {
-          this.plugin.settings.readOnly = !!val;
-          await this.plugin.saveData(this.plugin.settings);
-          this.plugin.setReadOnly?.(!!val);
+      .setName('Default view mode')
+      .setDesc('Sets the initial view mode for newly opened cards. You can change it any time from the toolbar.')
+      .addDropdown((dd) => {
+        dd.addOption('editor', 'Editor');
+        dd.addOption('both', 'Both');
+        dd.addOption('preview', 'Preview');
+        dd.setValue(this.plugin.settings.viewMode);
+        dd.onChange(async (val) => {
+          const mode = val as ViewMode;
+          await this.plugin.setViewMode?.(mode);
         });
       });
 

@@ -141,7 +141,6 @@ If your plugin does not need CSS, delete this file.
   cursor: pointer;
 }
 .canvas-md-side-editor-panel .cmside-toggle-preview-btn { width: 24px; padding: 0; display: grid; place-items: center; }
-.canvas-md-side-editor-panel .cmside-actions .cmside-icon { width: 14px; height: 14px; display: block; }
 .canvas-md-side-editor-panel .cmside-close-btn:hover {
   background: var(--background-modifier-hover);
 }
@@ -298,11 +297,11 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed
   padding: 0;
   overscroll-behavior: contain;
 }
-/* Read-only state: hide editor and divider; make preview full width; hide toggle button */
-.canvas-md-side-editor-panel.read-only .cmside-pane-editor { display: none; }
-.canvas-md-side-editor-panel.read-only .cmside-divider { display: none; }
-.canvas-md-side-editor-panel.read-only .cmside-pane-preview { flex: 1 1 auto; }
-.canvas-md-side-editor-panel.read-only .cmside-toggle-preview-btn { display: none; }
+/* Preview-only state (issue #16): hide editor and divider; make preview full width.
+   Toggle button stays visible — it now cycles through all three states. */
+.canvas-md-side-editor-panel[data-view-mode="preview"] .cmside-pane-editor { display: none; }
+.canvas-md-side-editor-panel[data-view-mode="preview"] .cmside-divider { display: none; }
+.canvas-md-side-editor-panel[data-view-mode="preview"] .cmside-pane-preview { flex: 1 1 auto; }
 /* Panel left-edge resizer */
 .canvas-md-side-editor-panel .cmside-panel-resizer {
   position: absolute;
@@ -332,11 +331,11 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed
   background: var(--background-secondary);
   color: var(--text-muted);
 }
-/* Collapsed preview state */
-.canvas-md-side-editor-panel.preview-collapsed .cmside-pane-preview { display: none; }
-.canvas-md-side-editor-panel.preview-collapsed .cmside-divider { display: none; }
-.canvas-md-side-editor-panel.preview-collapsed .cmside-pane-editor { flex: 1 1 auto !important; }
-.canvas-md-side-editor-panel.preview-collapsed .cmside-editor-root { border-right: none; }
+/* Editor-only state (issue #16): hide preview pane and divider; editor goes full width. */
+.canvas-md-side-editor-panel[data-view-mode="editor"] .cmside-pane-preview { display: none; }
+.canvas-md-side-editor-panel[data-view-mode="editor"] .cmside-divider { display: none; }
+.canvas-md-side-editor-panel[data-view-mode="editor"] .cmside-pane-editor { flex: 1 1 auto !important; }
+.canvas-md-side-editor-panel[data-view-mode="editor"] .cmside-editor-root { border-right: none; }
 .canvas-md-side-editor-panel .cmside-editor-root {
   flex: 1 1 auto;
   overflow: hidden;

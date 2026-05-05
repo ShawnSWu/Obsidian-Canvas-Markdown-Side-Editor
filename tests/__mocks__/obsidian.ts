@@ -203,7 +203,6 @@ export class MarkdownRenderer {
   });
 }
 
-export const addIcon = vi.fn();
 export const setIcon = vi.fn((el: HTMLElement, name: string) => {
   el.setAttribute('data-icon', name);
 });

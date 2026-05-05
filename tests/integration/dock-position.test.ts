@@ -34,7 +34,7 @@ function makeCanvasView(containerEl: HTMLElement): CanvasLikeView {
 async function makePlugin(app: App) {
   const plugin = new CanvasMdSideEditorPlugin(app, { id: 'test', version: '0.0.0' } as any);
   await plugin.onload();
-  plugin.settings.readOnly = true; // skip CodeMirror
+  plugin.settings.viewMode = 'preview'; // skip CodeMirror
   return plugin;
 }
 

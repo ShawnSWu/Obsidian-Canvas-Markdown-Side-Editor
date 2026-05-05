@@ -1,9 +1,9 @@
 import { EditorView } from '@codemirror/view';
-import { Notice, Plugin, TFile, WorkspaceLeaf, addIcon, setIcon } from 'obsidian';
+import { Notice, Plugin, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
 import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS } from './settings';
+import { migrateLegacyReadOnly, nextViewMode, type ViewMode } from './view-mode';
 import type { CanvasNode, CanvasData, CanvasLikeView, CanvasLike } from './types';
 import { buildRenamePath, extractTitleFromText, patchFirstLineWithTitle } from './utils/card-title';
-import { iconOneCol, iconTwoCols } from './ui/icons';
 import { CanvasMdSideEditorSettingTab } from './ui/setting-tab';
 import { findNodeIdAtPoint } from './utils/canvas';
 import { registerCommands } from './commands/register';
@@ -43,7 +43,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private editorClickAttachedEl: HTMLElement | null = null;
   private containerElRef: HTMLElement | null = null;
   private containerPosPatched: boolean = false;
-  private previewCollapsed: boolean = false;
+  private applyToolbarIcon: ((mode: ViewMode) => void) | null = null;
   private previewHelper: PreviewHelper | null = null;
   private panelController: PanelController | null = null;
   // Live Preview host for file-type canvas nodes (issue #9). Lazily created
@@ -79,29 +79,30 @@ class CanvasMdSideEditorPlugin extends Plugin {
   // of order, so an earlier-issued call's resume could clobber a
   // later-issued call's render — including writing the wrong content to
   // the wrong card on save (CM6 mode) or just showing the wrong preview
-  // (read-only mode). Each call captures its own myGen on entry and
+  // (preview-only view mode). Each call captures its own myGen on entry and
   // bails after every await if a newer call has bumped the counter.
   private openGeneration: number = 0;
 
   async onload() {
     // Load settings and register settings tab
+    let raw: Record<string, unknown> = {};
     try {
-      const data = (await this.loadData()) as Partial<CanvasMdSideEditorSettings> | null;
-      this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
-    } catch {
-      this.settings = { ...DEFAULT_SETTINGS };
+      const data = (await this.loadData()) as Record<string, unknown> | null;
+      if (data && typeof data === 'object') raw = data;
+    } catch {}
+
+    // Issue #16 migration: collapse legacy `readOnly` boolean into
+    // `viewMode` BEFORE merging with DEFAULT_SETTINGS, so the default
+    // `viewMode: 'both'` doesn't mask a legacy `readOnly: true` save.
+    // Idempotent; running on already-migrated data is a no-op.
+    const hadReadOnly = 'readOnly' in raw;
+    migrateLegacyReadOnly(raw);
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, raw) as CanvasMdSideEditorSettings;
+    if (hadReadOnly) {
+      try { await this.saveData(this.settings); } catch {}
     }
 
     this.addSettingTab(new CanvasMdSideEditorSettingTab(this.app, this));
-
-    // Start with preview visible by default. Collapsed state is session-only.
-    this.previewCollapsed = false;
-
-    // Register custom icons for toggle button
-    try {
-      addIcon('cmside-two-cols', iconTwoCols);
-      addIcon('cmside-one-col', iconOneCol);
-    } catch {}
 
     // Apply headline-mode body class on load so it covers any canvas that's
     // already open before our event listeners fire.
@@ -585,40 +586,51 @@ class CanvasMdSideEditorPlugin extends Plugin {
         container,
         () => this.settings,
         (s) => this.saveData(s),
-        this.previewCollapsed,
       );
       const refs = this.panelController.create();
       this.panelEl = refs.panelEl;
       this.editorRootEl = refs.editorRootEl;
       this.previewRootEl = refs.previewRootEl;
-      // Ensure preview helper is wired to the preview container
       if (!this.previewHelper) this.previewHelper = new PreviewHelper(this.app, this);
       this.previewHelper.setContainer(this.previewRootEl!);
-      // Toggle wiring and icon
-      const setToggleIcon = (collapsed: boolean) => {
-        setIcon(refs.toggleBtn, collapsed ? 'cmside-two-cols' : 'cmside-one-col');
-        refs.toggleBtn.setAttribute('aria-label', collapsed ? 'Show Preview' : 'Hide Preview');
-        refs.toggleBtn.setAttribute('title', collapsed ? 'Show Preview' : 'Hide Preview');
+
+      // Toolbar icon + tooltip per current viewMode (issue #16).
+      const ICONS: Record<ViewMode, string> = {
+        editor: 'pencil',
+        both: 'panel-left',
+        preview: 'book-open',
       };
-      setToggleIcon(this.previewCollapsed);
-      this.panelController.setPreviewCollapsed(this.previewCollapsed);
-      this.panelController.onToggle(() => {
-        this.previewCollapsed = !this.previewCollapsed;
-        this.panelController!.setPreviewCollapsed(this.previewCollapsed);
-        setToggleIcon(this.previewCollapsed);
-      });
+      const TOOLTIPS: Record<ViewMode, string> = {
+        editor: 'View: Editor only — click for Both',
+        both: 'View: Both — click for Preview',
+        preview: 'View: Preview only — click for Editor',
+      };
+      const applyIcon = (mode: ViewMode) => {
+        setIcon(refs.toggleBtn, ICONS[mode]);
+        refs.toggleBtn.setAttribute('aria-label', TOOLTIPS[mode]);
+        refs.toggleBtn.setAttribute('title', TOOLTIPS[mode]);
+      };
+      applyIcon(this.settings.viewMode);
+
+      this.panelController.onToggle(() => { this.cycleViewMode(); });
       this.panelController.onClose(() => { try { this.saveAndClose(view); } catch {} });
-      return; // use controller-built panel; skip legacy DOM building below
+      this.applyToolbarIcon = applyIcon; // expose for setViewMode to repaint
+      return;
     }
   }
 
-  // Public method for commands to toggle preview (delegates to the toolbar button)
-  public togglePreview(): void {
-    try {
-      if (!this.panelEl) return;
-      const btn = this.panelEl.querySelector('.cmside-toggle-preview-btn') as HTMLButtonElement | null;
-      btn?.click();
-    } catch {}
+  // Cycle Editor → Both → Preview → Editor (issue #16).
+  public cycleViewMode(): void {
+    void this.setViewMode(nextViewMode(this.settings.viewMode));
+  }
+
+  // Apply a specific view mode: persist + push to panel + repaint toolbar icon.
+  // Used by the cycle button, the settings dropdown, and command callbacks.
+  public async setViewMode(mode: ViewMode): Promise<void> {
+    this.settings.viewMode = mode;
+    try { await this.saveData(this.settings); } catch {}
+    try { this.panelController?.setViewMode?.(mode); } catch {}
+    try { this.applyToolbarIcon?.(mode); } catch {}
   }
 
   private async openEditorForNode(view: any, node: CanvasNode) {
@@ -669,11 +681,11 @@ class CanvasMdSideEditorPlugin extends Plugin {
       if (this.openGeneration !== myGen) return;
     }
     this.usingLeafHost = false;
-    if (!this.settings.readOnly) {
+    if (this.settings.viewMode !== 'preview') {
       await this.openCmEditor(initial);
       if (this.openGeneration !== myGen) return;
     } else if (this.cmView) {
-      // Burn down any cmView left over from a prior non-read-only session.
+      // Burn down any cmView left over from a prior editor-or-both view-mode session.
       // Otherwise the next saveCurrentEdits would dump the previous card's
       // editor content back into whatever node is currently selected — for
       // file cards that means overwriting the linked .md file with the
@@ -703,18 +715,18 @@ class CanvasMdSideEditorPlugin extends Plugin {
     this.panelEl.classList.add('open');
     // Re-render shortly after opening to account for layout/transition
     // timing. We deliberately use initialForPreview rather than reading
-    // from this.cmView here: in read-only mode openCmEditor is skipped,
+    // from this.cmView here: in preview-only view mode openCmEditor is skipped,
     // so cmView retains content from whatever card was last opened in
-    // non-read-only mode. Reading from it at +80ms would clobber the
+    // editor or both view mode. Reading from it at +80ms would clobber the
     // correct preview we just rendered with that stale content. If the
-    // user is editing in non-read-only, schedulePreviewRender's debounced
+    // user is editing in editor or both view mode, schedulePreviewRender's debounced
     // path will reflect those edits independently of this nudge.
     setTimeout(() => {
       if (this.openGeneration !== myGen) return;
       this.renderPreview(initialForPreview);
     }, 80);
-    // Focus editor for immediate typing (skip if read-only)
-    if (!this.settings.readOnly) {
+    // Focus editor for immediate typing (skip in preview-only view mode)
+    if (this.settings.viewMode !== 'preview') {
       try {
         if (this.usingLeafHost) {
           this.mdLeafHost?.getView()?.editor?.focus();
@@ -781,11 +793,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private closePanel() {
     if (this.panelEl) this.panelEl.classList.remove('open');
     this.currentNodeId = null;
-  }
-
-  // Public wrappers used by the settings tab to avoid touching private fields
-  public setReadOnly(v: boolean) {
-    try { this.panelController?.setReadOnly?.(!!v); } catch {}
   }
 
   public applyFontSizes() {
@@ -881,6 +888,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
       try { this.panelController.destroy(); } catch {}
       this.panelController = null;
     }
+    // Drop the toolbar icon callback so it doesn't retain a detached <button>.
+    this.applyToolbarIcon = null;
     // Drop the embedded live-preview leaf (if any) before nuking the panel.
     if (this.mdLeafHost) {
       try { void this.mdLeafHost.detach(); } catch {}
@@ -975,7 +984,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
   }
 
   private setupEditorBlankClickHandler() {
-    if (!this.editorRootEl || !this.cmView || this.settings.readOnly) return;
+    if (!this.editorRootEl || !this.cmView || this.settings.viewMode === 'preview') return;
     const root = this.editorRootEl;
     // If handler already attached to another element, detach first
     if (this.editorClickAttachedEl && this.editorClickAttachedEl !== root && this.editorClickHandler) {

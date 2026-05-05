@@ -55,9 +55,9 @@ function makeTextNode(id: string, text: string): CanvasNode {
 
 async function makePlugin(app: App) {
   const plugin = new CanvasMdSideEditorPlugin(app, { id: 'test', version: '0.0.0' } as any);
-  // Ensure read-only path so CodeMirror is not instantiated (keeps test light).
+  // Force preview-only view mode so CodeMirror is not instantiated (keeps test light).
   await plugin.onload();
-  plugin.settings.readOnly = true;
+  plugin.settings.viewMode = 'preview';
   return plugin;
 }
 

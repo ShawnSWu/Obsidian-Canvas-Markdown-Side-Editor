@@ -1,4 +1,5 @@
 import type { CanvasMdSideEditorSettings, DockPosition } from '../settings';
+import type { ViewMode } from '../view-mode';
 
 const DOCK_CLASSES: Record<DockPosition, string> = {
   left: 'cmside-dock-left',
@@ -21,8 +22,6 @@ export class PanelController {
   private container: HTMLElement;
   private getSettings: () => CanvasMdSideEditorSettings;
   private persistSettings: (s: CanvasMdSideEditorSettings) => Promise<void> | void;
-  private previewCollapsed: boolean;
-  private readOnly: boolean = false;
   private dockPosition: DockPosition = 'right';
 
   private panelEl: HTMLElement | null = null;
@@ -39,7 +38,6 @@ export class PanelController {
   private toolbarEl!: HTMLElement;
   private detachFns: Array<() => void> = [];
   private containerPosPatched = false;
-  private editorFlexBeforeCollapse: string | null = null;
   // Track currently applied preset classes so we can swap cleanly
   private currentPanelWidthClass: string | null = null;
   private currentEditorWidthClass: string | null = null;
@@ -50,12 +48,10 @@ export class PanelController {
     container: HTMLElement,
     getSettings: () => CanvasMdSideEditorSettings,
     persistSettings: (s: CanvasMdSideEditorSettings) => Promise<void> | void,
-    previewCollapsedInitial: boolean,
   ) {
     this.container = container;
     this.getSettings = getSettings;
     this.persistSettings = persistSettings;
-    this.previewCollapsed = !!previewCollapsedInitial;
   }
 
   create(): PanelRefs {
@@ -116,16 +112,10 @@ export class PanelController {
     this.cornerResizerEl = cornerResizer;
     this.toolbarEl = toolbar;
 
-    // Initialize preview collapsed UI
-    if (this.previewCollapsed) panel.classList.add('preview-collapsed');
-    // Ensure layout reflects collapsed state (editor should occupy full width)
-    this.applyCollapsedLayout();
-
-    // Apply initial read-only from settings if available
-    try {
-      const s = this.getSettings();
-      this.setReadOnly(!!s?.readOnly);
-    } catch {}
+    // Initialize view mode from settings (issue #16). This is the single
+    // source of truth for editor/preview pane visibility.
+    const initialMode: ViewMode = (this.getSettings()?.viewMode ?? 'both') as ViewMode;
+    panel.setAttribute('data-view-mode', initialMode);
 
     // Initialize and apply font sizes from settings (capture theme defaults if unset or legacy <= 0)
     try {
@@ -183,34 +173,12 @@ export class PanelController {
   }
 
   // UI state
-  setPreviewCollapsed(collapsed: boolean) {
-    if (!this.panelEl) return;
-    if (this.readOnly) collapsed = false; // force visible in read-only
-    this.previewCollapsed = !!collapsed;
-    if (this.previewCollapsed) this.panelEl.classList.add('preview-collapsed');
-    else this.panelEl.classList.remove('preview-collapsed');
-    this.applyCollapsedLayout();
-  }
 
-  setReadOnly(ro: boolean) {
-    this.readOnly = !!ro;
+  // Single setter for the 3-way view mode (issue #16). Drives layout via
+  // the `data-view-mode` attribute on the panel element; CSS does the rest.
+  setViewMode(mode: ViewMode) {
     if (!this.panelEl) return;
-    if (this.readOnly) {
-      this.panelEl.classList.add('read-only');
-      // ensure preview is visible and layout updated
-      this.setPreviewCollapsed(false);
-    } else {
-      this.panelEl.classList.remove('read-only');
-      // restore layout based on current collapsed state
-      this.setPreviewCollapsed(this.previewCollapsed);
-    }
-  }
-
-  private applyCollapsedLayout() {
-    try {
-      // Layout is driven by CSS classes in styles.css (e.g., .preview-collapsed)
-      // No inline style manipulation needed here.
-    } catch {}
+    this.panelEl.setAttribute('data-view-mode', mode);
   }
 
   applyFontSizes() {
