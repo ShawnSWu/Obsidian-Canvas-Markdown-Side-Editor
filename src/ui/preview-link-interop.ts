@@ -20,6 +20,10 @@ function paneModeFromEvent(e: MouseEvent): 'tab' | 'split' {
 
 export function attachPreviewLinkInterop(opts: AttachPreviewLinkInteropOptions): void {
   const { app, plugin, container, getSourcePath, hoverSource } = opts;
+
+  if (container.dataset.cmsideLinkInteropAttached === '1') return;
+  container.dataset.cmsideLinkInteropAttached = '1';
+
   const source = hoverSource ?? 'canvas-markdown-side-editor';
 
   plugin.registerDomEvent(container, 'mouseover', (e: MouseEvent) => {

@@ -210,3 +210,17 @@ describe('attachPreviewLinkInterop — auxclick (middle button)', () => {
     expect(ev.defaultPrevented).toBe(false);
   });
 });
+
+describe('attachPreviewLinkInterop — idempotency', () => {
+  it('calling attach twice on the same container only attaches one set of listeners', () => {
+    const app = new App();
+    const plugin = makePlugin(app);
+    const container = makeContainer('<a class="internal-link" data-href="N">N</a>');
+    attachPreviewLinkInterop({ app, plugin, container, getSourcePath: () => '' });
+    attachPreviewLinkInterop({ app, plugin, container, getSourcePath: () => '' });
+
+    container.querySelector('a')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+    expect(app.workspace.trigger).toHaveBeenCalledTimes(1);
+  });
+});
