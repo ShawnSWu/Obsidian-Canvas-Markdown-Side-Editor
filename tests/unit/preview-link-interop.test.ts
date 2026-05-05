@@ -117,3 +117,68 @@ describe('attachPreviewLinkInterop — hover', () => {
     expect(calls[1][1].sourcePath).toBe('second.canvas');
   });
 });
+
+describe('attachPreviewLinkInterop — click', () => {
+  it('click on a.internal-link calls openLinkText with tab and preventDefault', () => {
+    const app = new App();
+    const plugin = makePlugin(app);
+    const container = makeContainer('<a class="internal-link" data-href="Note">Note</a>');
+    attachPreviewLinkInterop({ app, plugin, container, getSourcePath: () => 'canvas.canvas' });
+
+    const a = container.querySelector('a')!;
+    const ev = new MouseEvent('click', { bubbles: true, cancelable: true });
+    a.dispatchEvent(ev);
+
+    expect(app.workspace.openLinkText).toHaveBeenCalledTimes(1);
+    expect(app.workspace.openLinkText).toHaveBeenCalledWith('Note', 'canvas.canvas', 'tab');
+    expect(ev.defaultPrevented).toBe(true);
+  });
+
+  it('shift+click opens in split', () => {
+    const app = new App();
+    const plugin = makePlugin(app);
+    const container = makeContainer('<a class="internal-link" data-href="N">N</a>');
+    attachPreviewLinkInterop({ app, plugin, container, getSourcePath: () => 'src.canvas' });
+
+    container.querySelector('a')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true }));
+
+    expect(app.workspace.openLinkText).toHaveBeenCalledWith('N', 'src.canvas', 'split');
+  });
+
+  it('ctrl+click opens in tab (modifier not consulted, default is already tab)', () => {
+    const app = new App();
+    const plugin = makePlugin(app);
+    const container = makeContainer('<a class="internal-link" data-href="N">N</a>');
+    attachPreviewLinkInterop({ app, plugin, container, getSourcePath: () => 'src.canvas' });
+
+    container.querySelector('a')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }));
+
+    expect(app.workspace.openLinkText).toHaveBeenCalledWith('N', 'src.canvas', 'tab');
+  });
+
+  it('click on a.external-link does NOT call openLinkText and does NOT preventDefault', () => {
+    const app = new App();
+    const plugin = makePlugin(app);
+    const container = makeContainer('<a class="external-link" href="https://example.com">ext</a>');
+    attachPreviewLinkInterop({ app, plugin, container, getSourcePath: () => '' });
+
+    const ev = new MouseEvent('click', { bubbles: true, cancelable: true });
+    container.querySelector('a')!.dispatchEvent(ev);
+
+    expect(app.workspace.openLinkText).not.toHaveBeenCalled();
+    expect(ev.defaultPrevented).toBe(false);
+  });
+
+  it('click on anchor with empty data-href and href does NOT call openLinkText', () => {
+    const app = new App();
+    const plugin = makePlugin(app);
+    const container = makeContainer('<a class="internal-link"></a>');
+    attachPreviewLinkInterop({ app, plugin, container, getSourcePath: () => '' });
+
+    const ev = new MouseEvent('click', { bubbles: true, cancelable: true });
+    container.querySelector('a')!.dispatchEvent(ev);
+
+    expect(app.workspace.openLinkText).not.toHaveBeenCalled();
+    expect(ev.defaultPrevented).toBe(false);
+  });
+});

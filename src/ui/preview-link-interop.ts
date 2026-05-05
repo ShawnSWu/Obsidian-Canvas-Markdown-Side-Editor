@@ -14,6 +14,10 @@ function getLinkText(a: HTMLAnchorElement): string {
   return a.getAttribute('data-href') ?? a.getAttribute('href') ?? '';
 }
 
+function paneModeFromEvent(e: MouseEvent): 'tab' | 'split' {
+  return e.shiftKey ? 'split' : 'tab';
+}
+
 export function attachPreviewLinkInterop(opts: AttachPreviewLinkInteropOptions): void {
   const { app, plugin, container, getSourcePath, hoverSource } = opts;
   const source = hoverSource ?? 'canvas-markdown-side-editor';
@@ -34,6 +38,19 @@ export function attachPreviewLinkInterop(opts: AttachPreviewLinkInteropOptions):
       });
     } catch (err) {
       try { console.error('CanvasMdSideEditor: hover-link interop failed', err); } catch {}
+    }
+  });
+
+  plugin.registerDomEvent(container, 'click', (e: MouseEvent) => {
+    try {
+      const a = (e.target as Element | null)?.closest(LINK_SELECTOR) as HTMLAnchorElement | null;
+      if (!a) return;
+      const linktext = getLinkText(a);
+      if (!linktext) return;
+      e.preventDefault();
+      void app.workspace.openLinkText(linktext, getSourcePath(), paneModeFromEvent(e));
+    } catch (err) {
+      try { console.error('CanvasMdSideEditor: link click interop failed', err); } catch {}
     }
   });
 }
