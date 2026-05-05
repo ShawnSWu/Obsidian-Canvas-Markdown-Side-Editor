@@ -75,6 +75,8 @@ export class Workspace {
     return { id: Math.random() };
   });
   off = vi.fn();
+  trigger = vi.fn((event: string, ...args: any[]) => this.__emit(event, ...args));
+  openLinkText = vi.fn(async (_linktext: string, _sourcePath: string, _newLeaf?: boolean | string) => {});
   // Helper for tests
   __emit(event: string, ...args: any[]) {
     this.listeners.get(event)?.forEach((cb) => cb(...args));
