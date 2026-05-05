@@ -53,4 +53,18 @@ export function attachPreviewLinkInterop(opts: AttachPreviewLinkInteropOptions):
       try { console.error('CanvasMdSideEditor: link click interop failed', err); } catch {}
     }
   });
+
+  plugin.registerDomEvent(container, 'auxclick', (e: MouseEvent) => {
+    try {
+      if (e.button !== 1) return;
+      const a = (e.target as Element | null)?.closest(LINK_SELECTOR) as HTMLAnchorElement | null;
+      if (!a) return;
+      const linktext = getLinkText(a);
+      if (!linktext) return;
+      e.preventDefault();
+      void app.workspace.openLinkText(linktext, getSourcePath(), 'tab');
+    } catch (err) {
+      try { console.error('CanvasMdSideEditor: link auxclick interop failed', err); } catch {}
+    }
+  });
 }

@@ -182,3 +182,31 @@ describe('attachPreviewLinkInterop — click', () => {
     expect(ev.defaultPrevented).toBe(false);
   });
 });
+
+describe('attachPreviewLinkInterop — auxclick (middle button)', () => {
+  it('button=1 on a.internal-link calls openLinkText with tab and preventDefault', () => {
+    const app = new App();
+    const plugin = makePlugin(app);
+    const container = makeContainer('<a class="internal-link" data-href="Mid">Mid</a>');
+    attachPreviewLinkInterop({ app, plugin, container, getSourcePath: () => 'src.canvas' });
+
+    const ev = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 });
+    container.querySelector('a')!.dispatchEvent(ev);
+
+    expect(app.workspace.openLinkText).toHaveBeenCalledWith('Mid', 'src.canvas', 'tab');
+    expect(ev.defaultPrevented).toBe(true);
+  });
+
+  it('button=2 (right-click) does NOT call openLinkText', () => {
+    const app = new App();
+    const plugin = makePlugin(app);
+    const container = makeContainer('<a class="internal-link" data-href="X">X</a>');
+    attachPreviewLinkInterop({ app, plugin, container, getSourcePath: () => '' });
+
+    const ev = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 2 });
+    container.querySelector('a')!.dispatchEvent(ev);
+
+    expect(app.workspace.openLinkText).not.toHaveBeenCalled();
+    expect(ev.defaultPrevented).toBe(false);
+  });
+});
