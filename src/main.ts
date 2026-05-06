@@ -638,6 +638,28 @@ class CanvasMdSideEditorPlugin extends Plugin {
     try { await this.saveData(this.settings); } catch {}
     try { this.panelController?.setViewMode?.(mode); } catch {}
     try { this.applyToolbarIcon?.(mode); } catch {}
+    // Rebuild cmView when leaving preview if the dispose path in
+    // openEditorForNode (or simply opening a card while already in preview)
+    // left it null. Without this, the editor pane becomes visible-but-blank.
+    if (mode !== 'preview' && !this.cmView && this.currentNode && this.editorRootEl) {
+      try { await this.rebuildCmViewForCurrentNode(); } catch {}
+    }
+  }
+
+  // Re-create cmView with the latest content of the currently-open node.
+  // Mirrors the source-of-truth resolution in openEditorForNode: text cards
+  // read from node.text, file cards re-read from disk.
+  private async rebuildCmViewForCurrentNode(): Promise<void> {
+    const node = this.currentNode;
+    if (!node) return;
+    let initial = '';
+    if (node.type === 'text') {
+      initial = node.text ?? '';
+    } else if (node.type === 'file' && typeof node.file === 'string') {
+      const f = this.resolveVaultFile(node.file);
+      if (f) initial = await this.app.vault.read(f);
+    }
+    await this.openCmEditor(initial);
   }
 
   private async openEditorForNode(view: any, node: CanvasNode) {
