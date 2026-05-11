@@ -1,6 +1,7 @@
 import { EditorState, type Extension } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
+import { EditorView, keymap } from '@codemirror/view';
 import { markdown } from '@codemirror/lang-markdown';
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 
 export function createEditor(
   parent: HTMLElement,
@@ -8,7 +9,12 @@ export function createEditor(
   onDocChange?: (view: EditorView) => void,
   onPasteImages?: (files: File[], view: EditorView) => void,
 ): EditorView {
-  const extensions: Extension[] = [markdown(), EditorView.lineWrapping];
+  const extensions: Extension[] = [
+    markdown(),
+    EditorView.lineWrapping,
+    history(),
+    keymap.of([...defaultKeymap, ...historyKeymap]),
+  ];
   if (onDocChange) {
     extensions.push(
       EditorView.updateListener.of((vu) => {

@@ -36,6 +36,7 @@
 		"vitest": "^1.6.1"
 	},
 	"dependencies": {
+		"@codemirror/commands": "^6.10.3",
 		"@codemirror/lang-markdown": "^6.3.4",
 		"@codemirror/state": "^6.5.2",
 		"@codemirror/view": "^6.38.2"

@@ -1,15 +1,15 @@
 import { EditorView } from '@codemirror/view';
-import { Notice, Plugin, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
+import { Notice, Plugin, Scope, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
 import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS } from './settings';
 import { migrateLegacyReadOnly, nextViewMode, type ViewMode } from './view-mode';
-import type { CanvasNode, CanvasData, CanvasLikeView, CanvasLike } from './types';
+import type { CanvasNode, CanvasLikeView, CanvasLike } from './types';
 import { buildRenamePath, extractTitleFromText, patchFirstLineWithTitle } from './utils/card-title';
 import { CanvasMdSideEditorSettingTab } from './ui/setting-tab';
 import { findNodeIdAtPoint } from './utils/canvas';
 import { registerCommands } from './commands/register';
 import { createEditor } from './ui/editor';
 import { MarkdownLeafHost } from './ui/markdown-leaf';
-import { hitTestNodeAt as hitTestNodeAtUtil, getCanvasNodeById as getNodeByIdUtil, readCanvasData as readCanvasDataUtil } from './utils/canvas-data';
+import { hitTestNodeAt as hitTestNodeAtUtil, getCanvasNodeById as getNodeByIdUtil } from './utils/canvas-data';
 import { getSelectedCanvasNodeId as getSelId, tryCanvasAPIsForHit as tryAPIsHit } from './utils/canvas-selection';
 import { PreviewHelper } from './ui/preview';
 import { attachPreviewLinkInterop } from './ui/preview-link-interop';
@@ -35,10 +35,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private detachHandlers: Array<() => void> = [];
   private pendingNodeId: string | null = null;
   private previewRootEl: HTMLElement | null = null;
-  private previewTimer: number | null = null;
   private currentSourcePath: string = '';
   private cmScrollHandler: ((e: Event) => void) | null = null;
-  private onResizeHandler: (() => void) | null = null;
   // UX helpers for editor focusing on blank clicks
   private editorClickHandler: ((e: MouseEvent) => void) | null = null;
   private editorClickAttachedEl: HTMLElement | null = null;
@@ -59,6 +57,12 @@ class CanvasMdSideEditorPlugin extends Plugin {
   // new Canvas (or the leaf rebuilds the view), we can save unsaved edits to
   // the previous canvas before tearing down a now-stale panel. Fixes issue #8.
   private lastCanvasView: CanvasLikeView | null = null;
+
+  // Obsidian Scope that overrides Mod+X while the side panel is open.
+  // Canvas's "cut selected node" hotkey runs at a level that the plain CM6
+  // keymap (even with stopPropagation) cannot reach — pushing this scope
+  // makes Obsidian's keymap dispatcher check our Mod+X binding first.
+  private sideEditorScope: Scope | null = null;
 
   // Zoom-to-selection integration
   private canvasPatchedRef: CanvasLike | null = null;
@@ -622,8 +626,47 @@ class CanvasMdSideEditorPlugin extends Plugin {
       this.panelController.onToggle(() => { this.cycleViewMode(); });
       this.panelController.onClose(() => { try { this.saveAndClose(view); } catch {} });
       this.applyToolbarIcon = applyIcon; // expose for setViewMode to repaint
+      this.installSideEditorScope();
       return;
     }
+  }
+
+  // Push a scope onto Obsidian's keymap that overrides Mod+X. The callback
+  // only acts when focus is inside our CM6 editor — otherwise it returns
+  // true so Canvas's own "cut selected node" hotkey can run unchanged.
+  private installSideEditorScope(): void {
+    if (this.sideEditorScope) return;
+    const scope = new Scope(this.app.scope);
+    scope.register(['Mod'], 'x', () => {
+      const cm = this.cmView;
+      const ae = document.activeElement;
+      if (!cm || !ae || !cm.contentDOM.contains(ae)) return true;
+      const sel = cm.state.selection.main;
+      let from = sel.from;
+      let to = sel.to;
+      if (sel.empty) {
+        const line = cm.state.doc.lineAt(sel.from);
+        from = line.from;
+        to = line.to === cm.state.doc.length ? line.to : line.to + 1;
+      }
+      if (from === to) return false;
+      const text = cm.state.sliceDoc(from, to);
+      try { void navigator.clipboard.writeText(text); } catch {}
+      cm.dispatch({
+        changes: { from, to, insert: '' },
+        selection: { anchor: from },
+        userEvent: 'delete.cut',
+      });
+      return false;
+    });
+    this.app.keymap.pushScope(scope);
+    this.sideEditorScope = scope;
+  }
+
+  private uninstallSideEditorScope(): void {
+    if (!this.sideEditorScope) return;
+    try { this.app.keymap.popScope(this.sideEditorScope); } catch {}
+    this.sideEditorScope = null;
   }
 
   // Cycle Editor → Both → Preview → Editor (issue #16).
@@ -912,6 +955,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
   }
 
   private teardownPanel() {
+    this.uninstallSideEditorScope();
     // Prefer controller cleanup if present
     if (this.panelController) {
       try { this.panelController.destroy(); } catch {}
@@ -953,11 +997,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
     this.containerPosPatched = false;
     this.editorRootEl = null;
     this.previewRootEl = null;
-    this.onResizeHandler = null;
-    if (this.previewTimer) {
-      window.clearTimeout(this.previewTimer);
-      this.previewTimer = null;
-    }
     this.currentNodeId = null;
     this.currentCanvasFile = null;
     this.currentNode = null;
@@ -985,31 +1024,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
   private syncPreviewScroll() {
     if (!this.cmView) return;
     this.previewHelper?.syncScrollFromEditor(this.cmView);
-  }
-
-  // Removed syncPreviewPadding(): preview now uses CSS variables for padding
-
-  private alignPreviewToCaret() {
-    if (!this.cmView || !this.previewRootEl) return;
-    try {
-      const anchor = this.previewRootEl.querySelector('[data-cm-anchor]') as HTMLElement | null;
-      if (!anchor) return this.syncPreviewScroll();
-      const cm = this.cmView as EditorView;
-      const pos = this.cmView.state.selection.main.head;
-      const line = this.cmView.state.doc.lineAt(pos);
-      const lineRect = this.cmView.coordsAtPos(line.from);
-      if (!lineRect) return;
-      const editorRect = cm.scrollDOM.getBoundingClientRect();
-      const previewRect = this.previewRootEl.getBoundingClientRect();
-      const anchorRect = anchor.getBoundingClientRect();
-      const lineTopInEditor = lineRect.top - editorRect.top + cm.scrollDOM.scrollTop;
-      const anchorTopInPreview = anchorRect.top - previewRect.top + this.previewRootEl.scrollTop;
-      const desiredScrollTop = Math.max(0, Math.round(anchorTopInPreview - lineTopInEditor));
-      this.previewRootEl.scrollTop = desiredScrollTop;
-    } catch {
-      // fallback to simple sync
-      this.syncPreviewScroll();
-    }
   }
 
   private setupEditorBlankClickHandler() {

@@ -83,12 +83,37 @@ export class Workspace {
   }
 }
 
+export class Scope {
+  parent: Scope | null;
+  registered: Array<{ modifiers: string[] | null; key: string | null; cb: (...a: any[]) => any }> = [];
+  constructor(parent?: Scope | null) { this.parent = parent ?? null; }
+  register = vi.fn((modifiers: string[] | null, key: string | null, cb: (...a: any[]) => any) => {
+    const handler = { modifiers, key, cb };
+    this.registered.push(handler);
+    return handler;
+  });
+  unregister = vi.fn();
+}
+
+export class Keymap {
+  stack: Scope[] = [];
+  pushScope = vi.fn((s: Scope) => { this.stack.push(s); });
+  popScope = vi.fn((s: Scope) => {
+    const i = this.stack.lastIndexOf(s);
+    if (i >= 0) this.stack.splice(i, 1);
+  });
+}
+
 export class App {
   vault: Vault;
   workspace: Workspace;
+  scope: Scope;
+  keymap: Keymap;
   constructor() {
     this.vault = new Vault();
     this.workspace = new Workspace();
+    this.scope = new Scope();
+    this.keymap = new Keymap();
   }
 }
 

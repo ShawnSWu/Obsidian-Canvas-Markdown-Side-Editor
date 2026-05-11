@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { keymap } from '@codemirror/view';
+import { undo } from '@codemirror/commands';
 import { createEditor } from '../../src/ui/editor';
 
 beforeEach(() => {
@@ -30,6 +32,36 @@ describe('createEditor', () => {
     const view = createEditor(makeParent(), 'abc', onDocChange);
     view.dispatch({ selection: { anchor: 1 } });
     expect(onDocChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('createEditor — standard editing keymap', () => {
+  function registeredKeys(view: ReturnType<typeof createEditor>): string[] {
+    const bindings = view.state.facet(keymap).flat() as Array<{ key?: string; mac?: string }>;
+    return bindings.map(b => b.key ?? '').filter(Boolean);
+  }
+
+  it('registers Mod-z for undo and Mod-y for redo via historyKeymap', () => {
+    const view = createEditor(makeParent(), 'hello');
+    const keys = registeredKeys(view);
+    expect(keys).toContain('Mod-z');
+    expect(keys).toContain('Mod-y');
+  });
+
+  it('reverts inserted text when the undo command runs', () => {
+    // history() must be installed for `undo` to roll back a user transaction.
+    // Use `userEvent: 'input.type'` so CM6 marks the change as undoable;
+    // plain `view.dispatch({ changes })` is treated as a programmatic change
+    // and is not pushed onto the history stack.
+    const view = createEditor(makeParent(), '');
+    view.dispatch({
+      changes: { from: 0, insert: 'abc' },
+      userEvent: 'input.type',
+    });
+    expect(view.state.doc.toString()).toBe('abc');
+    const handled = undo(view);
+    expect(handled).toBe(true);
+    expect(view.state.doc.toString()).toBe('');
   });
 });
 
