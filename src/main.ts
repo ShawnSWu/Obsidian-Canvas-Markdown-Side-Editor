@@ -605,14 +605,17 @@ class CanvasMdSideEditorPlugin extends Plugin {
         getSourcePath: () => this.currentSourcePath,
       });
 
-      // Toolbar icon + tooltip per current viewMode (issue #16).
+      // Toolbar icon + tooltip per current viewMode (issue #16, #20).
+      // Cycle order: editor → live → both → preview → editor.
       const ICONS: Record<ViewMode, string> = {
         editor: 'pencil',
+        live: 'square-pen',
         both: 'panel-left',
         preview: 'book-open',
       };
       const TOOLTIPS: Record<ViewMode, string> = {
-        editor: 'View: Editor only — click for Both',
+        editor: 'View: Editor only — click for Live Preview',
+        live: 'View: Live Preview — click for Both',
         both: 'View: Both — click for Preview',
         preview: 'View: Preview only — click for Editor',
       };
@@ -677,13 +680,43 @@ class CanvasMdSideEditorPlugin extends Plugin {
   // Apply a specific view mode: persist + push to panel + repaint toolbar icon.
   // Used by the cycle button, the settings dropdown, and command callbacks.
   public async setViewMode(mode: ViewMode): Promise<void> {
+    const prevMode = this.settings.viewMode;
     this.settings.viewMode = mode;
     try { await this.saveData(this.settings); } catch {}
     try { this.panelController?.setViewMode?.(mode); } catch {}
     try { this.applyToolbarIcon?.(mode); } catch {}
+
+    // Transitions that change the active editor primitive — CM6 ↔
+    // detached MarkdownLeaf (Live Preview) — need a full re-open so the
+    // right primitive ends up mounted in editorRootEl. We detect both
+    // directions by checking what's currently displayed vs. what the new
+    // mode wants. The CM6-only cycles (editor/both/preview) are handled
+    // by the cheap rebuild below.
+    if (this.currentNode && this.lastCanvasView) {
+      const isLeavingLive = prevMode === 'live' && this.usingLeafHost;
+      const isEnteringLive =
+        mode === 'live'
+        && this.currentNode.type === 'file'
+        && typeof this.currentNode.file === 'string'
+        && this.resolveVaultFile(this.currentNode.file) != null;
+      if (isLeavingLive || isEnteringLive) {
+        // Flush the leaf's in-memory buffer first if we're tearing it
+        // down — otherwise typed-but-unsaved content disappears on
+        // detach and the next read sees stale disk data.
+        if (isLeavingLive) {
+          try { await this.mdLeafHost?.save(); } catch {}
+        }
+        await this.openEditorForNode(this.lastCanvasView, this.currentNode);
+        return;
+      }
+    }
+
     // Rebuild cmView when leaving preview if the dispose path in
     // openEditorForNode (or simply opening a card while already in preview)
     // left it null. Without this, the editor pane becomes visible-but-blank.
+    // Note: 'live' mode reaches here only when the leaf path was skipped
+    // (text card, or unresolvable file) — in that case we still need a
+    // CM6 fallback so the pane isn't empty.
     if (mode !== 'preview' && !this.cmView && this.currentNode && this.editorRootEl) {
       try { await this.rebuildCmViewForCurrentNode(); } catch {}
     }
@@ -740,30 +773,59 @@ class CanvasMdSideEditorPlugin extends Plugin {
       }
     }
 
-    // Live Preview leaf hijack (issue #9) is currently disabled. The
-    // detached-leaf approach hits an Obsidian 1.7+ cold-start race: the
-    // first leaf construction returns a DeferredView placeholder and only
-    // the second cycle promotes it to a real MarkdownView. That causes
-    // the side panel to flip from CM6 fallback to Live Preview between
-    // consecutive clicks of the same card — jarring UX. Until a stable
-    // approach exists (Hover Editor-style real-leaf reparent), we always
-    // use the plain CM6 editor and pair it with the side preview pane.
-    if (this.mdLeafHost) {
-      await this.mdLeafHost.detach();
+    // Live Preview leaf hijack (issue #9 / #20). The cold-start race that
+    // previously blocked this is resolved by MarkdownLeafHost calling
+    // leaf.loadIfDeferred() to promote a DeferredView placeholder. The
+    // leaf path is only used when:
+    //   - viewMode is 'live'
+    //   - the node is a file card with a resolvable .md TFile
+    // Text cards or unresolved files transparently fall back to the
+    // CM6 editor for this session without persisting the fallback.
+    const liveTarget =
+      this.settings.viewMode === 'live'
+      && node.type === 'file'
+      && typeof node.file === 'string'
+        ? this.resolveVaultFile(node.file)
+        : null;
+
+    if (liveTarget && this.editorRootEl) {
+      // Burn down any leftover CM6 before mounting the leaf into the same
+      // root element. Otherwise the leaf's reparent into editorRootEl
+      // would race with CM6 DOM still attached.
+      if (this.cmView) this.disposeCmView();
+      if (!this.mdLeafHost) this.mdLeafHost = new MarkdownLeafHost(this.app);
+      const liveView = await this.mdLeafHost.open(liveTarget, this.editorRootEl);
       if (this.openGeneration !== myGen) return;
-    }
-    this.usingLeafHost = false;
-    if (this.settings.viewMode !== 'preview') {
-      await this.openCmEditor(initial);
-      if (this.openGeneration !== myGen) return;
-    } else if (this.cmView) {
-      // Burn down any cmView left over from a prior editor-or-both view-mode session.
-      // Otherwise the next saveCurrentEdits would dump the previous card's
-      // editor content back into whatever node is currently selected — for
-      // file cards that means overwriting the linked .md file with the
-      // wrong text, which then surfaces as the bug where clicking card 2
-      // shows card 1's content (the file got rewritten on the way in).
-      this.disposeCmView();
+      if (liveView) {
+        this.usingLeafHost = true;
+      } else {
+        // Couldn't construct a leaf on this Obsidian build — quiet
+        // per-session fallback to CM6 source mode. Don't persist this;
+        // the next card / next session may succeed.
+        try { await this.mdLeafHost.detach(); } catch {}
+        if (this.openGeneration !== myGen) return;
+        this.usingLeafHost = false;
+        await this.openCmEditor(initial);
+        if (this.openGeneration !== myGen) return;
+      }
+    } else {
+      if (this.mdLeafHost) {
+        await this.mdLeafHost.detach();
+        if (this.openGeneration !== myGen) return;
+      }
+      this.usingLeafHost = false;
+      if (this.settings.viewMode !== 'preview') {
+        await this.openCmEditor(initial);
+        if (this.openGeneration !== myGen) return;
+      } else if (this.cmView) {
+        // Burn down any cmView left over from a prior editor-or-both view-mode session.
+        // Otherwise the next saveCurrentEdits would dump the previous card's
+        // editor content back into whatever node is currently selected — for
+        // file cards that means overwriting the linked .md file with the
+        // wrong text, which then surfaces as the bug where clicking card 2
+        // shows card 1's content (the file got rewritten on the way in).
+        this.disposeCmView();
+      }
     }
 
     // Initial preview render. For file cards, read fresh content so the
@@ -847,11 +909,16 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
   private async saveCurrentEdits(view: any) {
     if (!this.currentNodeId) return;
-    // File cards routed through the live-preview leaf are saved by Obsidian
-    // itself (the MarkdownView is bound directly to the file). We never
-    // need to dump anything back into the canvas JSON for them since file
-    // cards only reference the file by path.
-    if (this.usingLeafHost) return;
+    // File cards routed through the live-preview leaf write directly to
+    // the bound .md file. We never dump anything into the canvas JSON for
+    // them since file cards only reference the file by path. But the
+    // leaf's own save is debounced ~2s — force a flush here so the
+    // close-panel / switch-canvas paths don't lose typed-but-unsaved
+    // content if the user just stopped typing.
+    if (this.usingLeafHost) {
+      try { await this.mdLeafHost?.save(); } catch {}
+      return;
+    }
     if (!this.cmView) return;
     const newText = this.cmView.state.doc.toString();
     await writeNodeContentUtil(this.app, view, this.currentNode, this.currentNodeId, newText);
@@ -895,7 +962,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
   // settings tab when the user toggles "Show editable card title".
   public refreshCardTitle(): void {
     if (!this.panelController || !this.currentNode || !this.lastCanvasView) return;
-    const initial = this.cmView?.state.doc.toString() ?? '';
+    const initial = this.usingLeafHost
+      ? (this.mdLeafHost?.getValue() ?? '')
+      : (this.cmView?.state.doc.toString() ?? '');
     this.applyCardTitle(this.lastCanvasView, this.currentNode, initial);
   }
 

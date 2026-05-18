@@ -2,8 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { nextViewMode, migrateLegacyReadOnly, type ViewMode } from '../../src/view-mode';
 
 describe('nextViewMode', () => {
-  it('cycles editor -> both', () => {
-    expect(nextViewMode('editor')).toBe('both');
+  it('cycles editor -> live', () => {
+    expect(nextViewMode('editor')).toBe('live');
+  });
+  it('cycles live -> both', () => {
+    expect(nextViewMode('live')).toBe('both');
   });
   it('cycles both -> preview', () => {
     expect(nextViewMode('both')).toBe('preview');
@@ -38,7 +41,7 @@ describe('migrateLegacyReadOnly', () => {
   it('returns a settings object usable as { viewMode: ViewMode }', () => {
     const out = migrateLegacyReadOnly({ readOnly: true });
     const m: ViewMode = out.viewMode;
-    expect(['editor', 'both', 'preview']).toContain(m);
+    expect(['editor', 'live', 'both', 'preview']).toContain(m);
   });
 });
 

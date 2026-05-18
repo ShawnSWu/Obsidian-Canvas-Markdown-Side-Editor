@@ -1,4 +1,4 @@
-// Live Preview host (issue #9, approach A).
+// Live Preview host (issue #9 / #20).
 //
 // Hosts a real Obsidian `MarkdownView` inside our side panel by creating a
 // `WorkspaceLeaf` via the (undocumented but stable) runtime constructor and
@@ -13,8 +13,23 @@
 // MarkdownView we need a leaf that has no workspace parent. Multiple
 // long-lived community plugins (Hover Editor, Make.md, Edit-in-Modal)
 // rely on the same pattern.
+//
+// Cold-start race & loadIfDeferred(): Obsidian 1.7.2+ flips background /
+// detached leaves into a "deferred" state where `leaf.view` is a
+// `DeferredView` placeholder rather than the real `MarkdownView`. Earlier
+// attempts (pre-warm at layout-ready, retry-once) tried to work around
+// this empirically and were both reverted. The proper fix is the official
+// `leaf.loadIfDeferred()` API: after `setViewState`, if the leaf still
+// reports `isDeferred`, we await loadIfDeferred() to promote the view.
+// Falls through silently on Obsidian < 1.7.2 (those builds don't have
+// deferred views, so the leaf.view is already a real MarkdownView).
 
 import { App, MarkdownView, TFile, WorkspaceLeaf } from 'obsidian';
+
+type LeafWithDeferred = WorkspaceLeaf & {
+  isDeferred?: boolean;
+  loadIfDeferred?: () => Promise<void>;
+};
 
 export class MarkdownLeafHost {
   private app: App;
@@ -55,6 +70,20 @@ export class MarkdownLeafHost {
       return null;
     }
 
+    // Promote a DeferredView placeholder into the real MarkdownView before
+    // we read `leaf.view`. On Obsidian < 1.7.2 both isDeferred and
+    // loadIfDeferred are undefined and this is a no-op.
+    const leafDeferred = leaf as LeafWithDeferred;
+    if (leafDeferred.isDeferred && typeof leafDeferred.loadIfDeferred === 'function') {
+      try {
+        await leafDeferred.loadIfDeferred();
+      } catch (e) {
+        try { console.error('CanvasMdSideEditor: loadIfDeferred failed', e); } catch {}
+        await this.detach();
+        return null;
+      }
+    }
+
     const view = leaf.view;
     if (!(view instanceof MarkdownView)) {
       try { console.warn('CanvasMdSideEditor: leaf.view is not a MarkdownView', view); } catch {}
@@ -81,6 +110,16 @@ export class MarkdownLeafHost {
     } catch {}
 
     return view;
+  }
+
+  // Immediately flush the in-memory editor buffer to disk. MarkdownView's
+  // own save() is debounced (~2s); when we're about to swap the editor
+  // primitive (live → CM6 or vice versa) we need a synchronous write so
+  // the next read picks up freshly-typed content.
+  async save(): Promise<void> {
+    const v = this.getView();
+    if (!v) return;
+    try { await v.save(); } catch {}
   }
 
   async detach(): Promise<void> {

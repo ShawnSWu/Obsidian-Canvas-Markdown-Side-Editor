@@ -336,6 +336,12 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed
 .canvas-md-side-editor-panel[data-view-mode="editor"] .cmside-divider { display: none; }
 .canvas-md-side-editor-panel[data-view-mode="editor"] .cmside-pane-editor { flex: 1 1 auto !important; }
 .canvas-md-side-editor-panel[data-view-mode="editor"] .cmside-editor-root { border-right: none; }
+/* Live Preview state (issue #20): same layout as editor-only — the leaf
+   renders Live Preview inline so the side preview pane has nothing to add. */
+.canvas-md-side-editor-panel[data-view-mode="live"] .cmside-pane-preview { display: none; }
+.canvas-md-side-editor-panel[data-view-mode="live"] .cmside-divider { display: none; }
+.canvas-md-side-editor-panel[data-view-mode="live"] .cmside-pane-editor { flex: 1 1 auto !important; }
+.canvas-md-side-editor-panel[data-view-mode="live"] .cmside-editor-root { border-right: none; }
 .canvas-md-side-editor-panel .cmside-editor-root {
   flex: 1 1 auto;
   overflow: hidden;

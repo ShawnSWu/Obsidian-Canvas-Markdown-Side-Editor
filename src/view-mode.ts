@@ -1,13 +1,19 @@
 // Single source of truth for the side panel's view mode.
 //
-// The panel has three states: editor-only, editor+preview, preview-only.
-// Issue #16 collapses the previously-entangled `previewCollapsed`
-// (session) and `readOnly` (persisted) flags into one persisted enum.
+// Originally three states (issue #16): editor-only, editor+preview,
+// preview-only. Issue #20 adds 'live' — full Obsidian Live Preview hosted
+// inside the side panel via a detached MarkdownView leaf (file cards only;
+// text cards transparently fall back to source rendering since they have
+// no backing TFile to bind a leaf to).
+//
+// Cycle order is monotonic "more rendered" as you tab through:
+//   editor (source) → live (live preview) → both (source + reading) → preview (reading) → editor
 
-export type ViewMode = 'editor' | 'both' | 'preview';
+export type ViewMode = 'editor' | 'live' | 'both' | 'preview';
 
 const NEXT: Record<ViewMode, ViewMode> = {
-  editor: 'both',
+  editor: 'live',
+  live: 'both',
   both: 'preview',
   preview: 'editor',
 };

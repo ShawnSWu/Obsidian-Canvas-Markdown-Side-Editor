@@ -94,9 +94,10 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Default view mode')
-      .setDesc('Sets the initial view mode for newly opened cards. You can change it any time from the toolbar.')
+      .setDesc('Sets the initial view mode for newly opened cards. You can change it any time from the toolbar. "Live Preview" only applies to file-type cards; text cards transparently use Editor.')
       .addDropdown((dd) => {
         dd.addOption('editor', 'Editor');
+        dd.addOption('live', 'Live Preview');
         dd.addOption('both', 'Both');
         dd.addOption('preview', 'Preview');
         dd.setValue(this.plugin.settings.viewMode);
