@@ -7,7 +7,7 @@
 
 Edit Canvas Markdown cards from a side panel — live preview, autosave, and no zooming in and out of cramped cards.
 
-<img width="1000" alt="Canvas Markdown Side Editor — overview" src="docs/images/overview.png" />
+<img width="1000" alt="Canvas Markdown Side Editor — overview" src="docs/images/overview.gif" />
 
 ---
 
