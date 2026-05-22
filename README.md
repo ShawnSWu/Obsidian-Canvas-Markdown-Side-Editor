@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/b2075ff8-2327-440d-970a-5ca29423bcf1
 
 https://github.com/user-attachments/assets/48b1fe0d-a91f-469d-9d64-2fa90e4013ab
 
-> Toggle Headline mode in settings to collapse every card to its first `# H1`. Cards without a title show a faint "No headline" placeholder so you can spot what's missing.
+> Toggle Headline mode in settings to collapse every card to its first `# H1`. Standalone image cards keep showing their image; text cards collapse to just their headline (any inline `![[image.png]]` is hidden along with the body). Cards without a title show a faint "No headline" placeholder so you can spot what's missing.
 
 ---
 
@@ -38,7 +38,8 @@ Obsidian Canvas is great for visual thinking, but editing Markdown cards directl
 ## Features
 
 - **Flexible docking & floating panel** — dock the side editor on the right, left, top, or bottom of the Canvas, or detach it as a floating panel you can drag and resize. Position and size persist per dock.
-- **Headline mode** *(issue #13)* — vault-wide toggle that collapses every Canvas card to its first `# H1`. Get a clean "table of contents" view; full content stays editable through the side editor. Headline size is tunable as a percentage of card width (5–60%).
+- **Headline mode** *(issue #13)* — vault-wide toggle that collapses every Canvas card to its first `# H1`. Get a clean "table of contents" view; full content stays editable through the side editor. Standalone image cards keep showing their image, while text-card bodies (including inline images) collapse to the headline *(issue #21)*. Headline size is tunable as a percentage of card width (5–60%).
+- **Image cards fill their frame** *(issue #21)* — Canvas image cards stretch to fill the whole card (`object-fit: fill`) instead of leaving Obsidian's default letterbox gap, and scale up past the image's natural size. Applies to every Canvas image card while the plugin is enabled.
 - **Open-and-edit instantly** — clicking a Canvas Text card, or a File card pointing to a `.md` file, opens the side editor automatically.
 - **Auto-save** — saves on card switch or when you click the Canvas background.
 - **Auto-close while editing inside Canvas** — if you focus a Canvas card's own editor, pending changes save and the side panel closes to avoid edit conflicts.

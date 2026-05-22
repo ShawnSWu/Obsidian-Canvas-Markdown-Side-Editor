@@ -157,15 +157,24 @@ If your plugin does not need CSS, delete this file.
    We hide block-level content tags directly (instead of hiding non-h1/h2
    children of a wrapper) because Obsidian renders headings nested inside
    `.markdown-preview-sizer`, so a `> *:not(h1):not(h2)` rule would hide
-   the wrapper and take h1/h2 with it. */
-body.cmside-headline-mode .canvas-node :is(
+   the wrapper and take h1/h2 with it.
+
+   Issue #21: the hide is scoped to `.markdown-preview-view`/`.markdown-rendered`
+   — i.e. the *rendered body of a text/markdown card*. A standalone image
+   card is a Canvas file-node whose content element is itself
+   `.canvas-node-content.media-embed.image-embed` with NO markdown preview
+   inside, so none of these rules can match it and the image always shows.
+   Conversely an inline image in a text card (`![[img.png]]`) lives as a
+   descendant of `.markdown-preview-view`, so it IS collapsed away with the
+   rest of the body, leaving only the headline. */
+body.cmside-headline-mode .canvas-node :is(.markdown-preview-view, .markdown-rendered) :is(
   p, ul, ol, dl,
   blockquote, pre, code,
   hr, table, figure,
   img, picture, video, iframe, embed, object, audio,
   h2, h3, h4, h5, h6,
-  .callout, .image-embed, .file-embed, .markdown-embed-link,
-  .internal-embed, .external-link, .footnotes
+  .callout, .image-embed, .media-embed, .file-embed,
+  .internal-embed, .markdown-embed-link, .external-link, .footnotes
 ) {
   display: none !important;
 }
@@ -197,8 +206,14 @@ body.cmside-headline-mode .canvas-node .markdown-embed-link {
    be expressed in `cqi` (1% of container inline size). This makes the
    Title/Subtitle scale with the card itself — and because canvas zoom is
    implemented as a transform on the parent, the same rule also makes the
-   text track zoom level visually. */
-body.cmside-headline-mode .canvas-node .canvas-node-content,
+   text track zoom level visually.
+
+   Issue #21: exclude standalone image/media cards. Their `.canvas-node-content`
+   is a *flex item* of `.canvas-node-container`, and `container-type: inline-size`
+   imposes inline-size containment that collapses such a shrink-to-fit item to
+   ~0 width — squashing the image to nothing. Image cards have no headline text,
+   so they never needed the container anyway. */
+body.cmside-headline-mode .canvas-node .canvas-node-content:not(.image-embed):not(.media-embed),
 body.cmside-headline-mode .canvas-node .markdown-embed,
 body.cmside-headline-mode .canvas-node .markdown-embed-content,
 body.cmside-headline-mode .canvas-node .markdown-preview-view {
@@ -286,6 +301,26 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed
   height: revert !important;
   padding: revert !important;
   text-align: revert !important;
+}
+
+/* Image cards always fill their frame (issue #21 follow-up). Obsidian's
+   default centres a Canvas image with `object-fit: contain`, which
+   letterboxes (dark gap) whenever the card's aspect ratio differs from the
+   image's, and never upscales past the image's natural size. We force the
+   <img> to fill the whole card with `object-fit: fill` — exact fit, no gap,
+   and it keeps scaling up past natural size (quality degrades, by design).
+   This is NOT scoped to headline mode: it applies to every Canvas image
+   card whenever this plugin is enabled. The content element is a flexbox,
+   so we also zero its padding and override Obsidian's max-width/height. */
+.canvas-node .canvas-node-content:is(.image-embed, .media-embed) {
+  padding: 0 !important;
+}
+.canvas-node .canvas-node-content:is(.image-embed, .media-embed) > img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: fill !important;
 }
 
 .canvas-md-side-editor-panel .cmside-split {
