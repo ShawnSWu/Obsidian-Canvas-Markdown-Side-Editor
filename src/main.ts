@@ -299,14 +299,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
     for (const c of canvasEls) {
       if (!targets.includes(c)) targets.push(c);
     }
-    try { console.debug?.('CanvasMdSideEditor: potential targets', targets.map(t => ({ tag: t.tagName, cls: (t as HTMLElement).className }))); } catch {}
     try {
       const canvasObj: CanvasLike | undefined = view?.canvas as CanvasLike | undefined;
       if (canvasObj) {
-        const proto = Object.getPrototypeOf(canvasObj);
-        const keys = Object.keys(canvasObj);
-        const protoNames = Object.getOwnPropertyNames(proto ?? {});
-        console.debug?.('CanvasMdSideEditor: canvas api keys', { keys, protoNames });
         // Patch zoomToSelection to close side editor and mark zooming state
         try {
           const z = canvasObj.zoomToSelection;
@@ -364,11 +359,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
         hitId = await hitTestNodeAtUtil(this.app, view, (evt as PointerEvent).clientX, (evt as PointerEvent).clientY);
       }
       this.pendingNodeId = (domId ?? idByPoint ?? hitId) ?? null;
-      try { console.debug?.('CanvasMdSideEditor: pointerdown outside panel — DOM nodeId', domId, 'idByPoint', idByPoint, 'hitId', hitId); } catch {}
       // Also re-check selection shortly after pointerdown
       setTimeout(async () => {
         const selId = await getSelId(view);
-        try { console.debug?.('CanvasMdSideEditor: selection shortly after pointerdown', selId); } catch {}
         if (!this.pendingNodeId && selId) this.pendingNodeId = selId;
       }, 30);
       // Only save if panel is open
@@ -376,12 +369,10 @@ class CanvasMdSideEditorPlugin extends Plugin {
         // Clicking another card should also save current, but avoid saving if clicking the same card
         if (this.pendingNodeId) {
           if (this.currentNodeId && this.currentNodeId !== this.pendingNodeId) {
-            try { console.debug?.('CanvasMdSideEditor: pointerdown — preparing to switch from', this.currentNodeId, 'to', this.pendingNodeId, '— saving edits'); } catch {}
             await this.saveCurrentEdits(view);
           }
         } else {
           // Background pointerdown: pre-save edits
-          try { console.debug?.('CanvasMdSideEditor: pointerdown background — saving edits'); } catch {}
           await this.saveCurrentEdits(view);
         }
       }
@@ -421,8 +412,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
       const qualifiesSingleClick = isPrimaryButton && !this.pointerDragging && !moved && !isLongPress;
 
-      try { console.debug?.('CanvasMdSideEditor: pointerup qualify', { isPrimaryButton, dt, dx, dy, moved, isLongPress, qualifiesSingleClick }); } catch {}
-
       if (qualifiesSingleClick) {
         // Always resolve the clicked node id to avoid stale pendingNodeId
         let clickId: string | null = findNodeIdAtPoint(evt.clientX, evt.clientY);
@@ -430,7 +419,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
         if (!clickId) clickId = await getSelId(view);
         if (!clickId) clickId = this.pendingNodeId ?? null;
 
-        try { console.debug?.('CanvasMdSideEditor: pointerup resolved clickId', clickId, 'pending', this.pendingNodeId); } catch {}
         if (clickId) {
           const node = await getNodeByIdUtil(this.app, view, clickId);
           if (node) {
@@ -472,7 +460,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
         evt.preventDefault();
         evt.stopImmediatePropagation();
         evt.stopPropagation();
-        try { console.debug?.('CanvasMdSideEditor: suppressed dblclick zoom'); } catch {}
       } catch {}
     };
 
@@ -484,7 +471,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
         // Ignore focus inside our side panel
         if (this.panelEl && this.panelEl.contains(target)) return;
         if (this.isCanvasInlineEditTarget(target)) {
-          try { console.debug?.('CanvasMdSideEditor: focus entered Canvas inline editor — closing side panel'); } catch {}
           if (this.panelEl) await this.saveAndClose(view);
         }
       } catch {}
@@ -497,7 +483,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
         if (!target) return;
         if (this.panelEl && this.panelEl.contains(target)) return;
         if (this.isCanvasInlineEditTarget(target)) {
-          try { console.debug?.('CanvasMdSideEditor: keydown inside Canvas inline editor — closing side panel'); } catch {}
           if (this.panelEl) await this.saveAndClose(view);
         }
       } catch {}
@@ -512,8 +497,6 @@ class CanvasMdSideEditorPlugin extends Plugin {
       this.registerDomEvent(t, 'dblclick', onDblClick, { capture: true } as AddEventListenerOptions);
       this.registerDomEvent(t, 'focusin', onFocusIn, { capture: true } as AddEventListenerOptions);
       this.registerDomEvent(t, 'keydown', onKeyDown, { capture: true } as AddEventListenerOptions);
-      // For debugging; you can comment these out later
-      try { console.debug?.('CanvasMdSideEditor: attached listeners on', t); } catch {}
     }
   }
 
