@@ -15,8 +15,8 @@ import { PreviewHelper } from './ui/preview';
 import { attachPreviewLinkInterop } from './ui/preview-link-interop';
 import { PanelController } from './ui/panel';
 import { writeNodeContent as writeNodeContentUtil } from './utils/canvas-write';
-import { resolveHeadline, setCanvasHeadline, setNodeStyle, getNodeStyle, renameCanvasKey, deleteCanvasKey } from './style-store';
-import { applyCanvasHeadlineClass, applyNodeStyleVars } from './style-applier';
+import { resolveHeadline, setCanvasHeadline, setNodeStyle, getNodeStyle, setEdgeStyle, getEdgeStyle, renameCanvasKey, deleteCanvasKey } from './style-store';
+import { applyCanvasHeadlineClass, applyNodeStyleVars, applyEdgeLabelStyles } from './style-applier';
 import { openStylePopover } from './ui/style-popover';
 
 /*
@@ -213,6 +213,16 @@ class CanvasMdSideEditorPlugin extends Plugin {
         } catch {}
       });
       if (refNodeMenu) this.registerEvent(refNodeMenu);
+      const refEdgeMenu = wsOn?.('canvas:edge-menu', (menu: unknown, edge: unknown) => {
+        try {
+          (menu as { addItem?: (cb: (item: MenuItemLike) => void) => void }).addItem?.((item) => {
+            item.setTitle?.('Label style…');
+            item.setIcon?.('palette');
+            item.onClick?.(() => this.openEdgeStylePopover(edge as CanvasMenuNode));
+          });
+        } catch {}
+      });
+      if (refEdgeMenu) this.registerEvent(refEdgeMenu);
     } catch {}
   }
 
@@ -1096,14 +1106,75 @@ class CanvasMdSideEditorPlugin extends Plugin {
     } catch {}
   }
 
-  // Stamp the stored per-node style vars onto this canvas's card elements.
-  // Called on attach and after any style edit from the popover.
+  // Stamp the stored per-node/per-edge style vars onto this canvas's
+  // elements. Called on attach and after any style edit from the popover.
   public applyCanvasStyles(view: CanvasLikeView): void {
     try {
       const path = view.file?.path ?? null;
       if (!path) return;
       const styles = this.settings.canvasStyles?.[path];
       applyNodeStyleVars(view.containerEl, styles?.nodes ?? {});
+      applyEdgeLabelStyles(this.collectEdgeLabels(view), styles?.edges ?? {});
+    } catch {}
+  }
+
+  // Map edge id → label element from the canvas view's internal edges Map.
+  // Non-public API: shape is feature-detected per edge; anything that
+  // doesn't look like a labeled edge is skipped.
+  private collectEdgeLabels(view: CanvasLikeView): Array<[string, { labelEl: HTMLElement | null }]> {
+    const out: Array<[string, { labelEl: HTMLElement | null }]> = [];
+    try {
+      const edges = (view.canvas as { edges?: unknown } | undefined)?.edges;
+      const entries: Iterable<[unknown, unknown]> | null =
+        edges instanceof Map ? edges.entries() : null;
+      if (!entries) return out;
+      for (const [key, edge] of entries) {
+        const id = typeof key === 'string' ? key : (edge as { id?: string })?.id;
+        if (!id) continue;
+        const labelEl = this.resolveEdgeLabelEl(edge);
+        if (labelEl) out.push([id, { labelEl }]);
+      }
+    } catch {}
+    return out;
+  }
+
+  private resolveEdgeLabelEl(edge: unknown): HTMLElement | null {
+    const e = edge as { labelElement?: unknown; labelEl?: unknown } | null;
+    const candidates: unknown[] = [
+      (e?.labelElement as { wrapperEl?: unknown })?.wrapperEl,
+      (e?.labelElement as { el?: unknown })?.el,
+      e?.labelElement,
+      e?.labelEl,
+    ];
+    for (const c of candidates) {
+      if (c instanceof HTMLElement) return c;
+    }
+    return null;
+  }
+
+  // Opens the per-edge label style popover (canvas style suite).
+  private openEdgeStylePopover(edge: CanvasMenuNode | null): void {
+    try {
+      const view = this.getActiveCanvasView() ?? this.lastCanvasView;
+      const path = view?.file?.path;
+      const edgeId = edge?.id;
+      if (!view || !path || !edgeId) return;
+      const map = (this.settings.canvasStyles ??= {});
+      const current = getEdgeStyle(map, path, edgeId);
+      const labelEl = this.collectEdgeLabels(view).find(([id]) => id === edgeId)?.[1]?.labelEl ?? null;
+      openStylePopover({
+        anchorEl: labelEl ?? view.containerEl,
+        title: 'Label style',
+        fields: [
+          { key: 'labelColor', label: 'Color', kind: 'color', value: current.labelColor ?? '#ffffff' },
+          { key: 'labelSize', label: 'Size', kind: 'size', min: 8, max: 48, value: current.labelSize ?? 14 },
+        ],
+        onChange: (key, value) => {
+          setEdgeStyle(map, path, edgeId, { [key]: value === null ? undefined : value } as never);
+          void this.saveData(this.settings);
+          this.applyCanvasStyles(view);
+        },
+      });
     } catch {}
   }
 

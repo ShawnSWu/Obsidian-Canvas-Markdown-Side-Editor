@@ -184,6 +184,61 @@ describe('per-canvas headline mode', () => {
     expect(n1.style.getPropertyValue('--cmside-h1-size')).toBe('44');
   });
 
+  it('applyCanvasStyles stamps edge label vars via the canvas.edges map', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    const a = makeCanvasView('A.canvas');
+    const l1 = document.createElement('div');
+    const l2 = document.createElement('div');
+    (a.canvas as any).edges = new Map([
+      ['e1', { labelElement: { wrapperEl: l1 } }],
+      ['e2', { labelElement: { wrapperEl: l2 } }],
+      ['e3', {}], // unlabeled edge must be skipped
+    ]);
+    app.workspace.leaves = [{ view: a }];
+
+    plugin.settings.canvasStyles = { 'A.canvas': { edges: { e1: { labelSize: 18, labelColor: '#123456' } } } };
+    (plugin as any).applyCanvasStyles(a);
+
+    expect(l1.style.getPropertyValue('--cmside-edge-label-size')).toBe('18px');
+    expect(l1.style.getPropertyValue('--cmside-edge-label-color')).toBe('#123456');
+    expect(l2.style.getPropertyValue('--cmside-edge-label-size')).toBe('');
+
+    plugin.settings.canvasStyles = {};
+    (plugin as any).applyCanvasStyles(a);
+    expect(l1.style.getPropertyValue('--cmside-edge-label-size')).toBe('');
+  });
+
+  it('canvas:edge-menu adds a Label style item that persists edits', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    const a = makeCanvasView('A.canvas');
+    const label = document.createElement('div');
+    (a.canvas as any).edges = new Map([['e1', { id: 'e1', labelElement: { wrapperEl: label } }]]);
+    app.workspace.leaves = [{ view: a }];
+    app.workspace.activeLeaf = { view: a };
+
+    let clickCb: (() => void) | null = null;
+    const item = {
+      setTitle: () => item,
+      setIcon: () => item,
+      onClick: (cb: () => void) => { clickCb = cb; return item; },
+    };
+    const menu = { addItem: (cb: (i: unknown) => void) => cb(item) };
+    app.workspace.__emit('canvas:edge-menu', menu, { id: 'e1' });
+    expect(clickCb).toBeTruthy();
+    clickCb!();
+
+    const popover = document.querySelector('.cmside-style-popover') as HTMLElement;
+    expect(popover).toBeTruthy();
+    const range = popover.querySelector('input[type="range"]') as HTMLInputElement;
+    range.value = '20';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(plugin.settings.canvasStyles?.['A.canvas']?.edges?.e1?.labelSize).toBe(20);
+    expect(label.style.getPropertyValue('--cmside-edge-label-size')).toBe('20px');
+  });
+
   it('vault rename remaps the style key; delete prunes it', async () => {
     const app = new App();
     const plugin = await makePlugin(app);
