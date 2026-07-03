@@ -100,6 +100,16 @@ Open Settings → **Community Plugins** → **Canvas Markdown Side Editor**.
 | Headline title size | 22 | H1 size as a percentage of card width (5–60). Bigger value → bigger text. |
 | Editor font size (px) | theme | Override editor font size. Leave blank to follow your theme. |
 | Preview font size (px) | theme | Override preview font size. Leave blank to follow your theme. |
+| Edge anchor offsets *(experimental)* | off | Right-click an edge to attach its endpoints at 25% / 50% / 75% along a card side instead of the fixed midpoint. Uses non-public canvas APIs — if edges ever render wrong after an Obsidian update, turn this off. |
+
+### Canvas styling
+
+Style data lives in the plugin's own settings — your `.canvas` files are never modified, so a vault opened without the plugin renders completely normal canvases.
+
+- **Per-canvas headline mode** — the Headline mode setting is now only the vault-wide default. Use the `Toggle headline mode (this canvas)` command to override a single canvas (two canvases in a split view can disagree), and `Reset headline override (this canvas)` to follow the global setting again.
+- **Per-card headline style** — right-click a card → **Headline style…** to give that card's headline its own color and size. Reset per field to fall back to the defaults.
+- **Edge label style** — right-click an edge → **Label style…** to set that label's text size and color.
+- **Edge anchor offsets** *(experimental, off by default)* — right-click an edge to choose where each endpoint attaches along its side (25% / 50% / 75%), so parallel edges stop piling up on the same midpoint.
 
 <img width="1083" alt="Settings tab" src="https://github.com/user-attachments/assets/32db9f46-3dd2-4907-8b95-ffbed2cba597" />
 
@@ -110,6 +120,8 @@ Open Settings → **Community Plugins** → **Canvas Markdown Side Editor**.
 | Command | Default hotkey | Description |
 |---|---|---|
 | `Canvas Side Editor: Toggle Preview` | _unbound_ | Flip the preview pane on or off. |
+| `Canvas Side Editor: Toggle headline mode (this canvas)` | _unbound_ | Override headline mode for the active canvas only. |
+| `Canvas Side Editor: Reset headline override (this canvas)` | _unbound_ | Remove the per-canvas override; follow the global setting. |
 
 Bind any command to a hotkey from Settings → **Hotkeys**.
 

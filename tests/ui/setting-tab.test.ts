@@ -15,6 +15,7 @@ function setup(overrides: Partial<CanvasMdSideEditorSettings> = {}) {
     setViewMode: vi.fn(async (mode: any) => { settings.viewMode = mode; }),
     applyFontSizes: vi.fn(),
     applyDockPosition: vi.fn(),
+    installEdgeAnchorsIfEnabled: vi.fn(),
   };
   const tab = new CanvasMdSideEditorSettingTab(new App(), plugin as any);
   tab.display();
@@ -56,6 +57,20 @@ describe('CanvasMdSideEditorSettingTab.display', () => {
     expect(tab.containerEl.querySelectorAll('input').length).toBe(8);
     // 2 dropdowns: dockPosition + viewMode
     expect(tab.containerEl.querySelectorAll('select').length).toBe(2);
+  });
+});
+
+describe('Experimental edge anchors toggle (canvas style suite)', () => {
+  it('persists the flag and reinstalls the patch on change', async () => {
+    const { tab, plugin, settings } = setup({ experimentalEdgeAnchors: false });
+    // last checkbox in the tab is the experimental toggle
+    const checkboxes = Array.from(tab.containerEl.querySelectorAll('input[type="checkbox"]'));
+    const toggle = checkboxes[checkboxes.length - 1] as HTMLInputElement;
+    fire(toggle, true);
+    await flushAsync();
+    expect(settings.experimentalEdgeAnchors).toBe(true);
+    expect(plugin.saveData).toHaveBeenCalled();
+    expect(plugin.installEdgeAnchorsIfEnabled).toHaveBeenCalled();
   });
 });
 
