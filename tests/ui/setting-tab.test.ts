@@ -51,8 +51,9 @@ const flushAsync = () => new Promise<void>((r) => setTimeout(r, 0));
 describe('CanvasMdSideEditorSettingTab.display', () => {
   it('renders the expected control set', () => {
     const { tab } = setup();
-    // 5 number inputs + 2 checkboxes = 7 <input> elements (readOnly was input #3, now a <select>)
-    expect(tab.containerEl.querySelectorAll('input').length).toBe(7);
+    // 5 number inputs + 3 checkboxes (headline mode, experimental edge
+    // anchors, + panel toggle) = 8 <input> elements
+    expect(tab.containerEl.querySelectorAll('input').length).toBe(8);
     // 2 dropdowns: dockPosition + viewMode
     expect(tab.containerEl.querySelectorAll('select').length).toBe(2);
   });

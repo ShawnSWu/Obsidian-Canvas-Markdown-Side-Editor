@@ -18,6 +18,8 @@ import { writeNodeContent as writeNodeContentUtil } from './utils/canvas-write';
 import { resolveHeadline, setCanvasHeadline, setNodeStyle, getNodeStyle, setEdgeStyle, getEdgeStyle, renameCanvasKey, deleteCanvasKey } from './style-store';
 import { applyCanvasHeadlineClass, applyNodeStyleVars, applyEdgeLabelStyles } from './style-applier';
 import { openStylePopover } from './ui/style-popover';
+import { installEdgeAnchorPatch } from './edge-anchor';
+import type { AnchorOffset } from './style-store';
 
 /*
  Canvas Markdown Side Editor
@@ -80,6 +82,8 @@ class CanvasMdSideEditorPlugin extends Plugin {
   // Canvas style suite: re-stamps per-node vars when canvas mounts card DOM
   // lazily (nodes virtualize in/out as the viewport moves).
   private nodeStyleObserver: MutationObserver | null = null;
+  // Uninstaller for the experimental edge-anchor patch (null = not installed).
+  private edgeAnchorUninstall: (() => void) | null = null;
 
   // Zoom-to-selection integration
   private canvasPatchedRef: CanvasLike | null = null;
@@ -215,11 +219,24 @@ class CanvasMdSideEditorPlugin extends Plugin {
       if (refNodeMenu) this.registerEvent(refNodeMenu);
       const refEdgeMenu = wsOn?.('canvas:edge-menu', (menu: unknown, edge: unknown) => {
         try {
-          (menu as { addItem?: (cb: (item: MenuItemLike) => void) => void }).addItem?.((item) => {
+          const addItem = (menu as { addItem?: (cb: (item: MenuItemLike) => void) => void }).addItem;
+          addItem?.((item) => {
             item.setTitle?.('Label style…');
             item.setIcon?.('palette');
             item.onClick?.(() => this.openEdgeStylePopover(edge as CanvasMenuNode));
           });
+          // Anchor offsets only surface while the experimental flag is on.
+          if (this.settings.experimentalEdgeAnchors && addItem) {
+            for (const end of ['from', 'to'] as const) {
+              for (const offset of [0.25, 0.5, 0.75] as const) {
+                addItem((item) => {
+                  item.setTitle?.(`Anchor ${end}: ${offset * 100}%${offset === 0.5 ? ' (default)' : ''}`);
+                  item.setIcon?.('git-commit-horizontal');
+                  item.onClick?.(() => this.setEdgeAnchor(edge as CanvasMenuNode, end, offset));
+                });
+              }
+            }
+          }
         } catch {}
       });
       if (refEdgeMenu) this.registerEvent(refEdgeMenu);
@@ -365,6 +382,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
     this.applyHeadlineMode();
     this.applyCanvasStyles(view);
     this.installNodeStyleObserver(view);
+    this.installEdgeAnchorsIfEnabled(view);
     const contentEl: HTMLElement | undefined = view?.contentEl;
     const innerEl: HTMLElement | null = container.querySelector(
       '.canvas-container, .canvas-wrapper, .canvas-viewport'
@@ -1150,6 +1168,55 @@ class CanvasMdSideEditorPlugin extends Plugin {
       if (c instanceof HTMLElement) return c;
     }
     return null;
+  }
+
+  // Install (or reinstall) the experimental edge anchor patch on the given
+  // canvas. Handles the flag being off by only uninstalling. Public so the
+  // settings tab can flip it live.
+  public installEdgeAnchorsIfEnabled(view?: CanvasLikeView | null): void {
+    try { this.edgeAnchorUninstall?.(); } catch {}
+    this.edgeAnchorUninstall = null;
+    if (!this.settings.experimentalEdgeAnchors) return;
+    const v = view ?? this.getActiveCanvasView() ?? this.lastCanvasView;
+    const path = v?.file?.path;
+    const canvas = v?.canvas as { edges?: unknown } | undefined;
+    if (!v || !path || !canvas) return;
+    const uninstall = installEdgeAnchorPatch(canvas, (edgeId) =>
+      getEdgeStyle(this.settings.canvasStyles, path, edgeId));
+    this.edgeAnchorUninstall = uninstall;
+    this.detachHandlers.push(() => {
+      try { uninstall(); } catch {}
+      if (this.edgeAnchorUninstall === uninstall) this.edgeAnchorUninstall = null;
+    });
+    this.refreshEdgePaths(v);
+  }
+
+  // Persist a quantized anchor offset for one end of an edge. 0.5 (the
+  // native midpoint) is stored as "no override" so data.json stays minimal.
+  private setEdgeAnchor(edge: CanvasMenuNode | null, end: 'from' | 'to', offset: AnchorOffset): void {
+    try {
+      const view = this.getActiveCanvasView() ?? this.lastCanvasView;
+      const path = view?.file?.path;
+      const edgeId = edge?.id;
+      if (!view || !path || !edgeId) return;
+      const map = (this.settings.canvasStyles ??= {});
+      const key = end === 'from' ? 'fromOffset' : 'toOffset';
+      setEdgeStyle(map, path, edgeId, { [key]: offset === 0.5 ? undefined : offset } as never);
+      void this.saveData(this.settings);
+      this.installEdgeAnchorsIfEnabled(view);
+    } catch {}
+  }
+
+  // Re-run every edge's native path renderer so stored anchor offsets (or
+  // their removal) take effect immediately instead of on the next drag.
+  private refreshEdgePaths(view: CanvasLikeView): void {
+    try {
+      const edges = (view.canvas as { edges?: unknown } | undefined)?.edges;
+      if (!(edges instanceof Map)) return;
+      for (const e of edges.values()) {
+        try { (e as { updatePath?: () => void })?.updatePath?.(); } catch {}
+      }
+    } catch {}
   }
 
   // Opens the per-edge label style popover (canvas style suite).

@@ -11,6 +11,7 @@ interface CanvasMdSideEditorPluginLike {
   refreshCardTitle?(): void;
   applyDockPosition?(): void;
   applyHeadlineMode?(): void;
+  installEdgeAnchorsIfEnabled?(): void;
 }
 
 export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
@@ -184,6 +185,20 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
             await this.plugin.saveData(this.plugin.settings);
             this.plugin.applyFontSizes?.();
           }
+        });
+      });
+
+    containerEl.createEl('h3', { text: 'Experimental' });
+
+    new Setting(containerEl)
+      .setName('Edge anchor offsets')
+      .setDesc('Let edge endpoints attach at 25% / 50% / 75% along a card side (right-click an edge to choose). Uses non-public canvas APIs and may stop working after an Obsidian update — if edges ever look wrong, turn this off.')
+      .addToggle((tg) => {
+        tg.setValue(!!this.plugin.settings.experimentalEdgeAnchors);
+        tg.onChange(async (val) => {
+          this.plugin.settings.experimentalEdgeAnchors = !!val;
+          await this.plugin.saveData(this.plugin.settings);
+          this.plugin.installEdgeAnchorsIfEnabled?.();
         });
       });
   }

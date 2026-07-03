@@ -239,6 +239,57 @@ describe('per-canvas headline mode', () => {
     expect(label.style.getPropertyValue('--cmside-edge-label-size')).toBe('20px');
   });
 
+  it('experimental flag installs the edge anchor patch on attach', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    const a = makeCanvasView('A.canvas');
+    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pathEl.setAttribute('d', 'M 10,20 C 30,40 50,60 70,80');
+    const nativeD = 'M 10,20 C 30,40 50,60 70,80';
+    const edge: any = {
+      id: 'e1',
+      from: { side: 'right', node: { width: 200, height: 100 } },
+      to: { side: 'left', node: { width: 200, height: 100 } },
+      path: { display: pathEl },
+      updatePath: () => { pathEl.setAttribute('d', nativeD); },
+    };
+    (a.canvas as any).edges = new Map([['e1', edge]]);
+    app.workspace.leaves = [{ view: a }];
+    app.workspace.activeLeaf = { view: a };
+
+    plugin.settings.experimentalEdgeAnchors = true;
+    plugin.settings.canvasStyles = { 'A.canvas': { edges: { e1: { fromOffset: 0.75 } } } };
+    await (plugin as any).attachToCanvas(a);
+
+    edge.updatePath();
+    expect(pathEl.getAttribute('d')).toBe('M 10,45 C 30,40 50,60 70,80');
+  });
+
+  it('flag off leaves edge rendering native', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    const a = makeCanvasView('A.canvas');
+    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const nativeD = 'M 10,20 C 30,40 50,60 70,80';
+    pathEl.setAttribute('d', nativeD);
+    const edge: any = {
+      id: 'e1',
+      from: { side: 'right', node: { width: 200, height: 100 } },
+      to: { side: 'left', node: { width: 200, height: 100 } },
+      path: { display: pathEl },
+      updatePath: () => { pathEl.setAttribute('d', nativeD); },
+    };
+    (a.canvas as any).edges = new Map([['e1', edge]]);
+    app.workspace.leaves = [{ view: a }];
+
+    plugin.settings.experimentalEdgeAnchors = false;
+    plugin.settings.canvasStyles = { 'A.canvas': { edges: { e1: { fromOffset: 0.75 } } } };
+    await (plugin as any).attachToCanvas(a);
+
+    edge.updatePath();
+    expect(pathEl.getAttribute('d')).toBe(nativeD);
+  });
+
   it('vault rename remaps the style key; delete prunes it', async () => {
     const app = new App();
     const plugin = await makePlugin(app);
