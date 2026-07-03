@@ -1,4 +1,5 @@
 import type { ViewMode } from './view-mode';
+import type { CanvasStylesMap } from './style-store';
 
 export type DockPosition = 'left' | 'right' | 'top' | 'bottom' | 'floating';
 
@@ -25,6 +26,13 @@ export interface CanvasMdSideEditorSettings {
   // a sane min/max in CSS so very small / very large cards still look
   // reasonable.
   headlineH1Size?: number;
+  // Canvas style suite: per-canvas headline overrides + per-node/edge styles,
+  // keyed by canvas file path. Lives only in data.json — never written into
+  // .canvas files.
+  canvasStyles?: CanvasStylesMap;
+  // Experimental: quantized edge anchor offsets (25/50/75% along a side).
+  // Uses non-public canvas internals; off by default.
+  experimentalEdgeAnchors?: boolean;
 }
 
 export const DEFAULT_SETTINGS: CanvasMdSideEditorSettings = {
@@ -41,4 +49,6 @@ export const DEFAULT_SETTINGS: CanvasMdSideEditorSettings = {
   floatingHeight: 400,
   headlineMode: false,
   headlineH1Size: 22,
+  canvasStyles: {},
+  experimentalEdgeAnchors: false,
 };
