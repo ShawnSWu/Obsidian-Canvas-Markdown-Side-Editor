@@ -151,6 +151,39 @@ describe('per-canvas headline mode', () => {
     expect(late.style.getPropertyValue('--cmside-h1-color')).toBe('#00ff00');
   });
 
+  it('canvas:node-menu adds a Headline style item that opens the popover and persists edits', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    const a = makeCanvasView('A.canvas');
+    const n1 = document.createElement('div');
+    n1.className = 'canvas-node';
+    n1.setAttribute('data-node-id', 'n1');
+    a.containerEl.appendChild(n1);
+    app.workspace.leaves = [{ view: a }];
+    app.workspace.activeLeaf = { view: a };
+
+    let clickCb: (() => void) | null = null;
+    const item = {
+      setTitle: () => item,
+      setIcon: () => item,
+      onClick: (cb: () => void) => { clickCb = cb; return item; },
+    };
+    const menu = { addItem: (cb: (i: unknown) => void) => cb(item) };
+    app.workspace.__emit('canvas:node-menu', menu, { id: 'n1', nodeEl: n1 });
+    expect(clickCb).toBeTruthy();
+    clickCb!();
+
+    const popover = document.querySelector('.cmside-style-popover') as HTMLElement;
+    expect(popover).toBeTruthy();
+
+    const range = popover.querySelector('input[type="range"]') as HTMLInputElement;
+    range.value = '44';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(plugin.settings.canvasStyles?.['A.canvas']?.nodes?.n1?.h1Size).toBe(44);
+    expect(n1.style.getPropertyValue('--cmside-h1-size')).toBe('44');
+  });
+
   it('vault rename remaps the style key; delete prunes it', async () => {
     const app = new App();
     const plugin = await makePlugin(app);

@@ -639,6 +639,69 @@ If your plugin does not need CSS, delete this file.
   cursor: text;
 }
 
+/* === Canvas style suite: style-editing popover === */
+.cmside-style-popover {
+  position: fixed;
+  z-index: 9999;
+  min-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-primary);
+  box-shadow: var(--shadow-l, 0 8px 24px rgba(0, 0, 0, 0.2));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cmside-style-popover-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.cmside-style-popover-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cmside-style-popover-row .cmside-style-label {
+  flex: 0 0 4.5em;
+  font-size: 12px;
+  color: var(--text-normal);
+}
+.cmside-style-popover-row input[type="range"] { flex: 1 1 auto; }
+.cmside-style-popover-row input[type="color"] {
+  width: 32px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.cmside-style-readout {
+  min-width: 2em;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.cmside-style-reset {
+  font-size: 11px;
+  padding: 2px 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.cmside-style-reset:hover { background: var(--background-modifier-hover); }
+
+/* Per-edge label styling (canvas style suite). Vars are stamped inline on
+   the label element itself, so plain var() consumption is enough. */
+.canvas-edge-label {
+  font-size: var(--cmside-edge-label-size, inherit);
+  color: var(--cmside-edge-label-color, inherit);
+}
+
 /* Bottom-right corner resize handle. Only visible when floating. */
 .canvas-md-side-editor-panel .cmside-corner-resizer {
   display: none;

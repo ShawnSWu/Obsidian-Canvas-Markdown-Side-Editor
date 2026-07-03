@@ -15,8 +15,9 @@ import { PreviewHelper } from './ui/preview';
 import { attachPreviewLinkInterop } from './ui/preview-link-interop';
 import { PanelController } from './ui/panel';
 import { writeNodeContent as writeNodeContentUtil } from './utils/canvas-write';
-import { resolveHeadline, setCanvasHeadline, renameCanvasKey, deleteCanvasKey } from './style-store';
+import { resolveHeadline, setCanvasHeadline, setNodeStyle, getNodeStyle, renameCanvasKey, deleteCanvasKey } from './style-store';
 import { applyCanvasHeadlineClass, applyNodeStyleVars } from './style-applier';
+import { openStylePopover } from './ui/style-popover';
 
 /*
  Canvas Markdown Side Editor
@@ -26,6 +27,16 @@ import { applyCanvasHeadlineClass, applyNodeStyleVars } from './style-applier';
 */
 
 // types and settings imported from modules
+
+// Shapes handed to us by the undocumented `canvas:node-menu` /
+// `canvas:edge-menu` workspace events. Everything optional — accessed
+// defensively.
+type MenuItemLike = {
+  setTitle?: (t: string) => MenuItemLike;
+  setIcon?: (i: string) => MenuItemLike;
+  onClick?: (cb: () => void) => MenuItemLike;
+};
+type CanvasMenuNode = { id?: string; nodeEl?: unknown };
 
 class CanvasMdSideEditorPlugin extends Plugin {
   private panelEl: HTMLElement | null = null;
@@ -183,6 +194,26 @@ class CanvasMdSideEditorPlugin extends Plugin {
         void this.saveData(this.settings);
       }));
     }
+
+    // Canvas style suite context-menu entry points. `canvas:node-menu` is an
+    // undocumented workspace event (fired with the Menu and the canvas node
+    // object) — feature-detected and fully guarded, so on an Obsidian build
+    // without it the plugin simply has no menu item.
+    try {
+      const wsOn = (this.app.workspace as unknown as {
+        on?: (evt: string, cb: (...a: unknown[]) => void) => Parameters<Plugin['registerEvent']>[0];
+      }).on?.bind(this.app.workspace);
+      const refNodeMenu = wsOn?.('canvas:node-menu', (menu: unknown, node: unknown) => {
+        try {
+          (menu as { addItem?: (cb: (item: MenuItemLike) => void) => void }).addItem?.((item) => {
+            item.setTitle?.('Headline style…');
+            item.setIcon?.('palette');
+            item.onClick?.(() => this.openNodeStylePopover(node as CanvasMenuNode));
+          });
+        } catch {}
+      });
+      if (refNodeMenu) this.registerEvent(refNodeMenu);
+    } catch {}
   }
 
   // Save pasted images to vault and insert markdown links at cursor
@@ -1033,6 +1064,36 @@ class CanvasMdSideEditorPlugin extends Plugin {
     setCanvasHeadline(map, path, null);
     void this.saveData(this.settings);
     this.applyHeadlineMode();
+  }
+
+  // Opens the per-card headline style popover (canvas style suite). Anchors
+  // on the card element when the menu event provides one.
+  private openNodeStylePopover(node: CanvasMenuNode | null): void {
+    try {
+      const view = this.getActiveCanvasView() ?? this.lastCanvasView;
+      const path = view?.file?.path;
+      const nodeId = node?.id;
+      if (!view || !path || !nodeId) return;
+      const map = (this.settings.canvasStyles ??= {});
+      const current = getNodeStyle(map, path, nodeId);
+      const anchorEl = (node?.nodeEl instanceof HTMLElement ? node.nodeEl : null) ?? view.containerEl;
+      openStylePopover({
+        anchorEl,
+        title: 'Headline style',
+        fields: [
+          { key: 'h1Color', label: 'Color', kind: 'color', value: current.h1Color ?? '#ffffff' },
+          {
+            key: 'h1Size', label: 'Size', kind: 'size', min: 5, max: 60,
+            value: current.h1Size ?? clampHeadlineSize(this.settings.headlineH1Size, 22, 5, 60),
+          },
+        ],
+        onChange: (key, value) => {
+          setNodeStyle(map, path, nodeId, { [key]: value === null ? undefined : value } as never);
+          void this.saveData(this.settings);
+          this.applyCanvasStyles(view);
+        },
+      });
+    } catch {}
   }
 
   // Stamp the stored per-node style vars onto this canvas's card elements.
