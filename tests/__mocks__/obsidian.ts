@@ -27,6 +27,17 @@ export type EventRef = { id: number };
 
 export class Vault {
   private files = new Map<string, string | ArrayBuffer>();
+  private listeners = new Map<string, Set<(...a: any[]) => void>>();
+  on = vi.fn((event: string, cb: (...a: any[]) => void): EventRef => {
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set());
+    this.listeners.get(event)!.add(cb);
+    return { id: Math.random() };
+  });
+  off = vi.fn();
+  // Helper for tests
+  __emit(event: string, ...args: any[]) {
+    this.listeners.get(event)?.forEach((cb) => cb(...args));
+  }
   read = vi.fn(async (file: TFile) => {
     const v = this.files.get(file.path);
     if (typeof v === 'string') return v;
@@ -68,6 +79,9 @@ export class Vault {
 
 export class Workspace {
   activeLeaf: any = null;
+  // Tests can push fake leaves here; getLeavesOfType returns them as-is.
+  leaves: any[] = [];
+  getLeavesOfType = vi.fn((_type: string) => this.leaves);
   private listeners = new Map<string, Set<(...a: any[]) => void>>();
   on = vi.fn((event: string, cb: (...a: any[]) => void): EventRef => {
     if (!this.listeners.has(event)) this.listeners.set(event, new Set());

@@ -9,6 +9,8 @@ type Command = {
 interface CommandRegistrablePlugin {
   addCommand(cmd: Command): void;
   cycleViewMode?(): void;
+  toggleHeadlineForActiveCanvas?(): void;
+  resetHeadlineOverrideForActiveCanvas?(): void;
 }
 
 export function registerCommands(plugin: CommandRegistrablePlugin) {
@@ -19,5 +21,19 @@ export function registerCommands(plugin: CommandRegistrablePlugin) {
     id: 'cmside-toggle-preview',
     name: 'Canvas Side Editor: Toggle Preview',
     callback: () => plugin.cycleViewMode?.(),
+  });
+
+  // Per-canvas headline mode (canvas style suite). Toggle stores an explicit
+  // on/off override for the active canvas; reset removes the override so the
+  // canvas follows the global setting again.
+  plugin.addCommand({
+    id: 'cmside-toggle-headline-canvas',
+    name: 'Canvas Side Editor: Toggle headline mode (this canvas)',
+    callback: () => plugin.toggleHeadlineForActiveCanvas?.(),
+  });
+  plugin.addCommand({
+    id: 'cmside-reset-headline-canvas',
+    name: 'Canvas Side Editor: Reset headline override (this canvas)',
+    callback: () => plugin.resetHeadlineOverrideForActiveCanvas?.(),
   });
 }

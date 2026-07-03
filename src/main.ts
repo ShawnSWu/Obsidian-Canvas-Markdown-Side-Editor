@@ -15,6 +15,8 @@ import { PreviewHelper } from './ui/preview';
 import { attachPreviewLinkInterop } from './ui/preview-link-interop';
 import { PanelController } from './ui/panel';
 import { writeNodeContent as writeNodeContentUtil } from './utils/canvas-write';
+import { resolveHeadline, setCanvasHeadline, renameCanvasKey, deleteCanvasKey } from './style-store';
+import { applyCanvasHeadlineClass } from './style-applier';
 
 /*
  Canvas Markdown Side Editor
@@ -154,6 +156,29 @@ class CanvasMdSideEditorPlugin extends Plugin {
       }
     });
     this.registerEvent(refEdit);
+
+    // Canvas style suite housekeeping: style data is keyed by canvas file
+    // path, so renames must move the key and deletes must prune it.
+    const vaultOn = (this.app.vault as unknown as {
+      on?: (evt: string, cb: (...a: unknown[]) => void) => Parameters<Plugin['registerEvent']>[0];
+    }).on?.bind(this.app.vault);
+    if (vaultOn) {
+      this.registerEvent(vaultOn('rename', (file: unknown, oldPath: unknown) => {
+        const map = this.settings.canvasStyles;
+        const newPath = (file as { path?: string })?.path;
+        if (!map || typeof oldPath !== 'string' || !newPath) return;
+        if (!(oldPath in map)) return;
+        renameCanvasKey(map, oldPath, newPath);
+        void this.saveData(this.settings);
+      }));
+      this.registerEvent(vaultOn('delete', (file: unknown) => {
+        const map = this.settings.canvasStyles;
+        const path = (file as { path?: string })?.path;
+        if (!map || !path || !(path in map)) return;
+        deleteCanvasKey(map, path);
+        void this.saveData(this.settings);
+      }));
+    }
   }
 
   // Save pasted images to vault and insert markdown links at cursor
@@ -288,6 +313,9 @@ class CanvasMdSideEditorPlugin extends Plugin {
     }
     this.lastCanvasView = view;
     if (!container) return;
+    // Canvas style suite: a freshly attached canvas needs its per-canvas
+    // headline class (the load-time pass ran before this view existed).
+    this.applyHeadlineMode();
     const contentEl: HTMLElement | undefined = view?.contentEl;
     const innerEl: HTMLElement | null = container.querySelector(
       '.canvas-container, .canvas-wrapper, .canvas-viewport'
@@ -929,16 +957,74 @@ class CanvasMdSideEditorPlugin extends Plugin {
     } catch {}
   }
 
-  // Toggle the body-level class that drives the headline-mode CSS (issue #13)
-  // and publish the user-tunable Title/Subtitle sizes as CSS variables. Pure
-  // CSS does the rest, so we don't need to touch any canvas DOM ourselves.
+  // Apply headline mode per canvas (canvas style suite). The global setting
+  // is only the default: each canvas may carry an 'on'/'off' override in
+  // settings.canvasStyles, and the class now lives on the canvas view's
+  // containerEl (NOT document.body) so two canvases in a split view can
+  // disagree. The user-tunable global H1 size stays on body — per-node
+  // inline vars override it where set.
   public applyHeadlineMode(): void {
     try {
-      const on = !!this.settings.headlineMode;
-      document.body.classList.toggle('cmside-headline-mode', on);
+      // Drop the legacy body-level class from the vault-wide era.
+      document.body.classList.remove('cmside-headline-mode');
       const h1 = clampHeadlineSize(this.settings.headlineH1Size, 22, 5, 60);
       document.body.style.setProperty('--cmside-h1-size', String(h1));
+      for (const view of this.getAllCanvasViews()) {
+        const path = view.file?.path ?? null;
+        const on = resolveHeadline(this.settings.canvasStyles, path, !!this.settings.headlineMode);
+        applyCanvasHeadlineClass(view.containerEl, on);
+      }
     } catch {}
+  }
+
+  // Every canvas view we can currently see: all canvas leaves plus the
+  // active/last-attached view (covers tests and any odd leaf states).
+  private getAllCanvasViews(): CanvasLikeView[] {
+    const out: CanvasLikeView[] = [];
+    const seen = new Set<HTMLElement>();
+    const push = (v: CanvasLikeView | null | undefined) => {
+      if (!v?.containerEl || seen.has(v.containerEl)) return;
+      seen.add(v.containerEl);
+      out.push(v);
+    };
+    try {
+      const ws = this.app.workspace as unknown as { getLeavesOfType?: (t: string) => Array<{ view?: unknown }> };
+      for (const leaf of ws.getLeavesOfType?.('canvas') ?? []) push(leaf?.view as CanvasLikeView);
+    } catch {}
+    push(this.getActiveCanvasView());
+    push(this.lastCanvasView);
+    return out;
+  }
+
+  // Command target: flip the effective headline state of the active canvas
+  // into an explicit per-canvas override ("follow global" is reachable via
+  // resetHeadlineOverrideForActiveCanvas, kept out of the toggle cycle so
+  // the hotkey stays a predictable two-state flip).
+  public toggleHeadlineForActiveCanvas(): void {
+    const view = this.getActiveCanvasView() ?? this.lastCanvasView;
+    const path = view?.file?.path;
+    if (!view || !path) {
+      new Notice('No active canvas');
+      return;
+    }
+    const map = (this.settings.canvasStyles ??= {});
+    const effective = resolveHeadline(map, path, !!this.settings.headlineMode);
+    setCanvasHeadline(map, path, effective ? 'off' : 'on');
+    void this.saveData(this.settings);
+    this.applyHeadlineMode();
+  }
+
+  public resetHeadlineOverrideForActiveCanvas(): void {
+    const view = this.getActiveCanvasView() ?? this.lastCanvasView;
+    const path = view?.file?.path;
+    if (!view || !path) {
+      new Notice('No active canvas');
+      return;
+    }
+    const map = (this.settings.canvasStyles ??= {});
+    setCanvasHeadline(map, path, null);
+    void this.saveData(this.settings);
+    this.applyHeadlineMode();
   }
 
   // Re-render the toolbar title using the currently open node. Called by the

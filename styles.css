@@ -167,7 +167,7 @@ If your plugin does not need CSS, delete this file.
    Conversely an inline image in a text card (`![[img.png]]`) lives as a
    descendant of `.markdown-preview-view`, so it IS collapsed away with the
    rest of the body, leaving only the headline. */
-body.cmside-headline-mode .canvas-node :is(.markdown-preview-view, .markdown-rendered) :is(
+.cmside-headline-mode .canvas-node :is(.markdown-preview-view, .markdown-rendered) :is(
   p, ul, ol, dl,
   blockquote, pre, code,
   hr, table, figure,
@@ -180,7 +180,7 @@ body.cmside-headline-mode .canvas-node :is(.markdown-preview-view, .markdown-ren
 }
 /* Only the first H1 in the card counts as the title — drop any subsequent
    H1s so multi-H1 cards still produce a clean single-headline look. */
-body.cmside-headline-mode .canvas-node h1 ~ h1 {
+.cmside-headline-mode .canvas-node h1 ~ h1 {
   display: none !important;
 }
 
@@ -192,13 +192,13 @@ body.cmside-headline-mode .canvas-node h1 ~ h1 {
    `.metadata-container` (Properties), neither of which belong in
    headline view. We deliberately do NOT hide `.canvas-node-label`
    itself, so the canvas's built-in filename label stays visible. */
-body.cmside-headline-mode .canvas-node .mod-header,
-body.cmside-headline-mode .canvas-node .inline-title,
-body.cmside-headline-mode .canvas-node .metadata-container,
-body.cmside-headline-mode .canvas-node .markdown-embed-title,
-body.cmside-headline-mode .canvas-node .file-embed-title,
-body.cmside-headline-mode .canvas-node .embed-title,
-body.cmside-headline-mode .canvas-node .markdown-embed-link {
+.cmside-headline-mode .canvas-node .mod-header,
+.cmside-headline-mode .canvas-node .inline-title,
+.cmside-headline-mode .canvas-node .metadata-container,
+.cmside-headline-mode .canvas-node .markdown-embed-title,
+.cmside-headline-mode .canvas-node .file-embed-title,
+.cmside-headline-mode .canvas-node .embed-title,
+.cmside-headline-mode .canvas-node .markdown-embed-link {
   display: none !important;
 }
 
@@ -213,19 +213,19 @@ body.cmside-headline-mode .canvas-node .markdown-embed-link {
    imposes inline-size containment that collapses such a shrink-to-fit item to
    ~0 width — squashing the image to nothing. Image cards have no headline text,
    so they never needed the container anyway. */
-body.cmside-headline-mode .canvas-node .canvas-node-content:not(.image-embed):not(.media-embed),
-body.cmside-headline-mode .canvas-node .markdown-embed,
-body.cmside-headline-mode .canvas-node .markdown-embed-content,
-body.cmside-headline-mode .canvas-node .markdown-preview-view {
+.cmside-headline-mode .canvas-node .canvas-node-content:not(.image-embed):not(.media-embed),
+.cmside-headline-mode .canvas-node .markdown-embed,
+.cmside-headline-mode .canvas-node .markdown-embed-content,
+.cmside-headline-mode .canvas-node .markdown-preview-view {
   container-type: inline-size;
 }
 
 /* Centre the (now title-only) content vertically + horizontally inside
    the card. Multiple selector layers cover the variations in canvas DOM. */
-body.cmside-headline-mode .canvas-node .markdown-preview-view,
-body.cmside-headline-mode .canvas-node .markdown-preview-sizer,
-body.cmside-headline-mode .canvas-node .markdown-rendered,
-body.cmside-headline-mode .canvas-node .markdown-embed-content {
+.cmside-headline-mode .canvas-node .markdown-preview-view,
+.cmside-headline-mode .canvas-node .markdown-preview-sizer,
+.cmside-headline-mode .canvas-node .markdown-rendered,
+.cmside-headline-mode .canvas-node .markdown-embed-content {
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
@@ -237,7 +237,7 @@ body.cmside-headline-mode .canvas-node .markdown-embed-content {
   text-align: center !important;
 }
 
-body.cmside-headline-mode .canvas-node h1 {
+.cmside-headline-mode .canvas-node h1 {
   font-size: clamp(16px, calc(var(--cmside-h1-size, 22) * 1cqi), 240px) !important;
   font-weight: 700 !important;
   text-align: center !important;
@@ -258,7 +258,7 @@ body.cmside-headline-mode .canvas-node h1 {
    a faint placeholder so the user can tell the card is intentionally
    blank in this view (and that they need to add an H1 to give it a
    title). Uses CSS `:has()`, supported by Obsidian's Electron runtime. */
-body.cmside-headline-mode .canvas-node .markdown-preview-sizer:not(:has(h1))::before {
+.cmside-headline-mode .canvas-node .markdown-preview-sizer:not(:has(h1))::before {
   content: "No headline";
   color: var(--text-faint);
   font-style: italic;
@@ -269,7 +269,7 @@ body.cmside-headline-mode .canvas-node .markdown-preview-sizer:not(:has(h1))::be
 
 /* Don't enforce headline view while the card is in inline-edit mode so the
    user can still see / edit the full markdown if they double-click. */
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) :is(
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) :is(
   p, ul, ol, dl,
   blockquote, pre, code,
   hr, table, figure,
@@ -278,25 +278,25 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) :is(
   .callout, .image-embed, .file-embed, .markdown-embed-link,
   .internal-embed, .external-link, .footnotes
 ),
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) h1 ~ h1 {
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) h1 ~ h1 {
   display: revert !important;
 }
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .mod-header,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .inline-title,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .metadata-container,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-title,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .file-embed-title,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .embed-title,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-link {
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .mod-header,
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .inline-title,
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .metadata-container,
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-title,
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .file-embed-title,
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .embed-title,
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-link {
   display: revert !important;
 }
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-sizer::before {
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-sizer::before {
   content: none !important;
 }
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-view,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-sizer,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-rendered,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-content {
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-view,
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-sizer,
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-rendered,
+.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-content {
   display: revert !important;
   height: revert !important;
   padding: revert !important;
