@@ -245,7 +245,9 @@ If your plugin does not need CSS, delete this file.
   padding: 0 !important;
   border: none !important;
   line-height: 1.1 !important;
-  color: var(--text-normal) !important;
+  /* Per-card override stamped inline on .canvas-node by the style suite;
+     falls back to the theme text color. */
+  color: var(--cmside-h1-color, var(--text-normal)) !important;
   word-break: break-word !important;
   max-width: 100% !important;
   display: -webkit-box !important;

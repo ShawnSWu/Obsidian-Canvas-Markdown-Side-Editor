@@ -16,7 +16,7 @@ import { attachPreviewLinkInterop } from './ui/preview-link-interop';
 import { PanelController } from './ui/panel';
 import { writeNodeContent as writeNodeContentUtil } from './utils/canvas-write';
 import { resolveHeadline, setCanvasHeadline, renameCanvasKey, deleteCanvasKey } from './style-store';
-import { applyCanvasHeadlineClass } from './style-applier';
+import { applyCanvasHeadlineClass, applyNodeStyleVars } from './style-applier';
 
 /*
  Canvas Markdown Side Editor
@@ -65,6 +65,10 @@ class CanvasMdSideEditorPlugin extends Plugin {
   // keymap (even with stopPropagation) cannot reach — pushing this scope
   // makes Obsidian's keymap dispatcher check our Mod+X binding first.
   private sideEditorScope: Scope | null = null;
+
+  // Canvas style suite: re-stamps per-node vars when canvas mounts card DOM
+  // lazily (nodes virtualize in/out as the viewport moves).
+  private nodeStyleObserver: MutationObserver | null = null;
 
   // Zoom-to-selection integration
   private canvasPatchedRef: CanvasLike | null = null;
@@ -314,8 +318,12 @@ class CanvasMdSideEditorPlugin extends Plugin {
     this.lastCanvasView = view;
     if (!container) return;
     // Canvas style suite: a freshly attached canvas needs its per-canvas
-    // headline class (the load-time pass ran before this view existed).
+    // headline class (the load-time pass ran before this view existed) and
+    // its per-node style vars. Canvas virtualizes nodes (cards mount as they
+    // scroll into view), so an observer re-stamps vars on late mounts.
     this.applyHeadlineMode();
+    this.applyCanvasStyles(view);
+    this.installNodeStyleObserver(view);
     const contentEl: HTMLElement | undefined = view?.contentEl;
     const innerEl: HTMLElement | null = container.querySelector(
       '.canvas-container, .canvas-wrapper, .canvas-viewport'
@@ -1025,6 +1033,39 @@ class CanvasMdSideEditorPlugin extends Plugin {
     setCanvasHeadline(map, path, null);
     void this.saveData(this.settings);
     this.applyHeadlineMode();
+  }
+
+  // Stamp the stored per-node style vars onto this canvas's card elements.
+  // Called on attach and after any style edit from the popover.
+  public applyCanvasStyles(view: CanvasLikeView): void {
+    try {
+      const path = view.file?.path ?? null;
+      if (!path) return;
+      const styles = this.settings.canvasStyles?.[path];
+      applyNodeStyleVars(view.containerEl, styles?.nodes ?? {});
+    } catch {}
+  }
+
+  // Canvas mounts/unmounts card DOM as the viewport moves, so vars stamped
+  // at attach time miss cards that scroll in later. Watch for added nodes
+  // and re-apply (coalesced to one pass per tick).
+  private installNodeStyleObserver(view: CanvasLikeView): void {
+    this.nodeStyleObserver?.disconnect();
+    this.nodeStyleObserver = null;
+    try {
+      const observer = new MutationObserver((mutations) => {
+        // Only childList is observed and applyCanvasStyles touches style
+        // attributes only, so a direct call cannot re-trigger the observer.
+        if (!mutations.some((m) => m.addedNodes.length > 0)) return;
+        this.applyCanvasStyles(view);
+      });
+      observer.observe(view.containerEl, { childList: true, subtree: true });
+      this.nodeStyleObserver = observer;
+      this.detachHandlers.push(() => {
+        observer.disconnect();
+        if (this.nodeStyleObserver === observer) this.nodeStyleObserver = null;
+      });
+    } catch {}
   }
 
   // Re-render the toolbar title using the currently open node. Called by the

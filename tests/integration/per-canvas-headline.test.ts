@@ -111,6 +111,46 @@ describe('per-canvas headline mode', () => {
     expect(a.containerEl.classList.contains('cmside-headline-mode')).toBe(true);
   });
 
+  it('applyCanvasStyles stamps per-node vars on attach-time nodes', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    const a = makeCanvasView('A.canvas');
+    const n1 = document.createElement('div');
+    n1.className = 'canvas-node';
+    n1.setAttribute('data-node-id', 'n1');
+    const n2 = document.createElement('div');
+    n2.className = 'canvas-node';
+    n2.setAttribute('data-node-id', 'n2');
+    a.containerEl.append(n1, n2);
+    app.workspace.leaves = [{ view: a }];
+    app.workspace.activeLeaf = { view: a };
+
+    plugin.settings.canvasStyles = { 'A.canvas': { nodes: { n1: { h1Size: 40, h1Color: '#ff0000' } } } };
+    (plugin as any).applyCanvasStyles(a);
+
+    expect(n1.style.getPropertyValue('--cmside-h1-size')).toBe('40');
+    expect(n1.style.getPropertyValue('--cmside-h1-color')).toBe('#ff0000');
+    expect(n2.style.getPropertyValue('--cmside-h1-size')).toBe('');
+  });
+
+  it('late-mounted canvas nodes get vars via the mutation observer', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    const a = makeCanvasView('A.canvas');
+    app.workspace.leaves = [{ view: a }];
+    plugin.settings.canvasStyles = { 'A.canvas': { nodes: { late: { h1Color: '#00ff00' } } } };
+
+    await (plugin as any).attachToCanvas(a);
+
+    const late = document.createElement('div');
+    late.className = 'canvas-node';
+    late.setAttribute('data-node-id', 'late');
+    a.containerEl.appendChild(late);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(late.style.getPropertyValue('--cmside-h1-color')).toBe('#00ff00');
+  });
+
   it('vault rename remaps the style key; delete prunes it', async () => {
     const app = new App();
     const plugin = await makePlugin(app);
