@@ -396,6 +396,12 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed
 }
 .canvas-md-side-editor-panel .cmside-preview-root {
   flex: 1 1 auto;
+  /* Block, never flex: this element is the MarkdownRenderer.render()
+     target. A flex-column here (e.g. from Obsidian's
+     `.markdown-reading-view` rule, or a theme flexing
+     `.markdown-preview-view`) squashes callouts/code blocks to slivers
+     because their overflow != visible gives them a 0 min-height floor. */
+  display: block;
   overflow: auto;
   min-height: 0;
   height: 100%;
@@ -404,7 +410,6 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed
   box-sizing: border-box;
   font-size: var(--cmside-preview-font-size, inherit);
 }
-.canvas-md-side-editor-panel .cmside-preview-root.markdown-reading-view,
 .canvas-md-side-editor-panel .cmside-preview-root.markdown-preview-view { height: 100%; min-height: 0; }
 .canvas-md-side-editor-panel .cmside-preview-root img { max-width: 100%; height: auto; }
 

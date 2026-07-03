@@ -44,6 +44,22 @@ describe('PanelController.create', () => {
     expect(refs.panelEl.querySelector('.cmside-panel-resizer')).toBeTruthy();
   });
 
+  it('preview root is a render target, not a reading-view wrapper', () => {
+    // Obsidian core CSS makes `.markdown-reading-view` a column flex
+    // container (`display: flex; flex-direction: column`). Putting that
+    // class on the same element MarkdownRenderer.render() fills turns
+    // every rendered block into a flex item inside a fixed-height box —
+    // blocks with `overflow: visible` (p, table, h2) refuse to shrink
+    // below their content, while `.callout` (overflow: hidden) and `pre`
+    // (overflow-x: auto) have a min-height floor of 0 and get squashed
+    // to slivers. The root must only carry the render-target classes.
+    const { controller } = setup();
+    const refs = controller.create();
+    expect(refs.previewRootEl.classList.contains('markdown-reading-view')).toBe(false);
+    expect(refs.previewRootEl.classList.contains('markdown-preview-view')).toBe(true);
+    expect(refs.previewRootEl.classList.contains('markdown-rendered')).toBe(true);
+  });
+
   it('applies default panel-width preset class from settings', () => {
     const { controller } = setup({ defaultPanelWidth: 480 });
     const refs = controller.create();

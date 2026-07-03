@@ -90,7 +90,15 @@ export class PanelController {
     const previewPane = split.createDiv({ cls: 'cmside-pane cmside-pane-preview' });
     const previewHeader = previewPane.createDiv({ cls: 'cmside-pane-header' });
     previewHeader.setText('Preview');
-    const previewRoot = previewPane.createDiv({ cls: 'cmside-preview-root markdown-reading-view markdown-preview-view markdown-rendered' });
+    // NOTE: deliberately no `markdown-reading-view` here. That class is
+    // Obsidian's reading-view *wrapper* — core CSS gives it
+    // `display: flex; flex-direction: column`. On the same element that
+    // MarkdownRenderer.render() fills, every rendered block becomes a
+    // flex item in a fixed-height box: blocks with visible overflow
+    // (p/table/h2) can't shrink below their content, while `.callout`
+    // (overflow: hidden) and `pre` (overflow-x: auto) have a min-height
+    // floor of 0 and get squashed to clipped slivers.
+    const previewRoot = previewPane.createDiv({ cls: 'cmside-preview-root markdown-preview-view markdown-rendered' });
 
     // Panel width resizer (left edge)
     const panelResizer = panel.createDiv({ cls: 'cmside-panel-resizer', title: 'Drag to resize panel' });
