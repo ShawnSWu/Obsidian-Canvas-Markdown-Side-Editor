@@ -27,10 +27,25 @@ export function applyNodeStyleVars(
   els.forEach((el) => {
     const id = nodeIdOf(el);
     if (!id) return;
-    const style = nodes[id] ?? {};
-    setOrRemove(el, '--cmside-h1-size', style.h1Size != null ? String(style.h1Size) : null);
-    setOrRemove(el, '--cmside-h1-color', style.h1Color ?? null);
+    stampNodeStyle(el, nodes[id] ?? {});
   });
+}
+
+// Same stamping, but the caller supplies id → element pairs directly. This
+// is the path real Obsidian takes: canvas card DOM carries no id attribute,
+// the id only exists in the internal canvas.nodes Map (id → {nodeEl}).
+export function applyNodeStyleVarsToEls(
+  pairs: Iterable<[string, HTMLElement]>,
+  nodes: Record<string, NodeStyle>,
+): void {
+  for (const [id, el] of pairs) {
+    stampNodeStyle(el, nodes[id] ?? {});
+  }
+}
+
+function stampNodeStyle(el: HTMLElement, style: NodeStyle): void {
+  setOrRemove(el, '--cmside-h1-size', style.h1Size != null ? String(style.h1Size) : null);
+  setOrRemove(el, '--cmside-h1-color', style.h1Color ?? null);
 }
 
 export function clearNodeStyleVars(containerEl: HTMLElement): void {

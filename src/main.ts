@@ -16,7 +16,7 @@ import { attachPreviewLinkInterop } from './ui/preview-link-interop';
 import { PanelController } from './ui/panel';
 import { writeNodeContent as writeNodeContentUtil } from './utils/canvas-write';
 import { resolveHeadline, setCanvasHeadline, setNodeStyle, getNodeStyle, setEdgeStyle, getEdgeStyle, renameCanvasKey, deleteCanvasKey } from './style-store';
-import { applyCanvasHeadlineClass, applyNodeStyleVars, applyEdgeLabelStyles } from './style-applier';
+import { applyCanvasHeadlineClass, applyNodeStyleVars, applyNodeStyleVarsToEls, applyEdgeLabelStyles } from './style-applier';
 import { openStylePopover } from './ui/style-popover';
 import { installEdgeAnchorPatch } from './edge-anchor';
 import type { AnchorOffset } from './style-store';
@@ -1131,9 +1131,33 @@ class CanvasMdSideEditorPlugin extends Plugin {
       const path = view.file?.path ?? null;
       if (!path) return;
       const styles = this.settings.canvasStyles?.[path];
-      applyNodeStyleVars(view.containerEl, styles?.nodes ?? {});
+      // Primary path: the internal canvas.nodes Map — real canvas card DOM
+      // carries no data-node-id, so DOM-attribute matching finds nothing
+      // there. The attribute-based pass stays as a fallback for canvas
+      // builds where the Map isn't reachable.
+      const pairs = this.collectNodeEls(view);
+      if (pairs.length > 0) applyNodeStyleVarsToEls(pairs, styles?.nodes ?? {});
+      else applyNodeStyleVars(view.containerEl, styles?.nodes ?? {});
       applyEdgeLabelStyles(this.collectEdgeLabels(view), styles?.edges ?? {});
     } catch {}
+  }
+
+  // Map node id → card element from the canvas view's internal nodes Map
+  // (non-public API, feature-detected per node — same pattern as edges).
+  private collectNodeEls(view: CanvasLikeView): Array<[string, HTMLElement]> {
+    const out: Array<[string, HTMLElement]> = [];
+    try {
+      const nodes = (view.canvas as { nodes?: unknown } | undefined)?.nodes;
+      const entries: Iterable<[unknown, unknown]> | null =
+        nodes instanceof Map ? nodes.entries() : null;
+      if (!entries) return out;
+      for (const [key, node] of entries) {
+        const id = typeof key === 'string' ? key : (node as { id?: string })?.id;
+        const el = (node as { nodeEl?: unknown })?.nodeEl;
+        if (id && el instanceof HTMLElement) out.push([id, el]);
+      }
+    } catch {}
+    return out;
   }
 
   // Map edge id → label element from the canvas view's internal edges Map.

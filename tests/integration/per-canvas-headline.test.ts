@@ -184,6 +184,36 @@ describe('per-canvas headline mode', () => {
     expect(n1.style.getPropertyValue('--cmside-h1-size')).toBe('44');
   });
 
+  it('applyCanvasStyles stamps node vars via the canvas.nodes map when DOM has no id attributes (real Obsidian)', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    const a = makeCanvasView('A.canvas');
+    // Real canvas cards carry NO data-node-id / data-id attributes — the id
+    // lives only in the internal canvas.nodes Map.
+    const n1 = document.createElement('div');
+    n1.className = 'canvas-node';
+    const n2 = document.createElement('div');
+    n2.className = 'canvas-node';
+    a.containerEl.append(n1, n2);
+    (a.canvas as any).nodes = new Map([
+      ['n1', { id: 'n1', nodeEl: n1 }],
+      ['n2', { id: 'n2', nodeEl: n2 }],
+    ]);
+    app.workspace.leaves = [{ view: a }];
+
+    plugin.settings.canvasStyles = { 'A.canvas': { nodes: { n1: { h1Size: 40, h1Color: '#ff0000' } } } };
+    (plugin as any).applyCanvasStyles(a);
+
+    expect(n1.style.getPropertyValue('--cmside-h1-size')).toBe('40');
+    expect(n1.style.getPropertyValue('--cmside-h1-color')).toBe('#ff0000');
+    expect(n2.style.getPropertyValue('--cmside-h1-size')).toBe('');
+
+    // clearing the style removes the stamped vars too
+    plugin.settings.canvasStyles = {};
+    (plugin as any).applyCanvasStyles(a);
+    expect(n1.style.getPropertyValue('--cmside-h1-color')).toBe('');
+  });
+
   it('applyCanvasStyles stamps edge label vars via the canvas.edges map', async () => {
     const app = new App();
     const plugin = await makePlugin(app);
