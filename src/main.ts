@@ -36,6 +36,7 @@ import type { AnchorOffset } from './style-store';
 type MenuItemLike = {
   setTitle?: (t: string) => MenuItemLike;
   setIcon?: (i: string) => MenuItemLike;
+  setSection?: (s: string) => MenuItemLike;
   onClick?: (cb: () => void) => MenuItemLike;
 };
 type CanvasMenuNode = { id?: string; nodeEl?: unknown };
@@ -210,6 +211,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
       const refNodeMenu = wsOn?.('canvas:node-menu', (menu: unknown, node: unknown) => {
         try {
           (menu as { addItem?: (cb: (item: MenuItemLike) => void) => void }).addItem?.((item) => {
+            item.setSection?.('canvas');
             item.setTitle?.('Headline style…');
             item.setIcon?.('palette');
             item.onClick?.(() => this.openNodeStylePopover(node as CanvasMenuNode));
@@ -221,6 +223,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
         try {
           const addItem = (menu as { addItem?: (cb: (item: MenuItemLike) => void) => void }).addItem;
           addItem?.((item) => {
+            item.setSection?.('canvas');
             item.setTitle?.('Label style…');
             item.setIcon?.('palette');
             item.onClick?.(() => this.openEdgeStylePopover(edge as CanvasMenuNode));
@@ -230,6 +233,7 @@ class CanvasMdSideEditorPlugin extends Plugin {
             for (const end of ['from', 'to'] as const) {
               for (const offset of [0.25, 0.5, 0.75] as const) {
                 addItem((item) => {
+                  item.setSection?.('canvas');
                   item.setTitle?.(`Anchor ${end}: ${offset * 100}%${offset === 0.5 ? ' (default)' : ''}`);
                   item.setIcon?.('git-commit-horizontal');
                   item.onClick?.(() => this.setEdgeAnchor(edge as CanvasMenuNode, end, offset));
