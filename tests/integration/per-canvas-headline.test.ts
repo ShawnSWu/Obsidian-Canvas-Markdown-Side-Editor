@@ -320,6 +320,88 @@ describe('per-canvas headline mode', () => {
     expect(pathEl.getAttribute('d')).toBe(nativeD);
   });
 
+  it('canvas:selection-menu adds Label style when exactly one edge is selected', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    const a = makeCanvasView('A.canvas');
+    const label = document.createElement('div');
+    const edgeObj = { id: 'e1', from: {}, to: {}, labelElement: { wrapperEl: label } };
+    (a.canvas as any).edges = new Map([['e1', edgeObj]]);
+    (a.canvas as any).selection = new Set([edgeObj]);
+    app.workspace.leaves = [{ view: a }];
+    app.workspace.activeLeaf = { view: a };
+
+    let clickCb: (() => void) | null = null;
+    const item = {
+      setTitle: () => item,
+      setIcon: () => item,
+      setSection: () => item,
+      onClick: (cb: () => void) => { clickCb = cb; return item; },
+    };
+    const menu = { addItem: (cb: (i: unknown) => void) => cb(item) };
+    app.workspace.__emit('canvas:selection-menu', menu, a.canvas);
+    expect(clickCb).toBeTruthy();
+    clickCb!();
+
+    const popover = document.querySelector('.cmside-style-popover') as HTMLElement;
+    expect(popover).toBeTruthy();
+    const range = popover.querySelector('input[type="range"]') as HTMLInputElement;
+    range.value = '22';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(plugin.settings.canvasStyles?.['A.canvas']?.edges?.e1?.labelSize).toBe(22);
+  });
+
+  it('canvas:selection-menu adds Headline style when exactly one node is selected', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    const a = makeCanvasView('A.canvas');
+    const nodeEl = document.createElement('div');
+    nodeEl.className = 'canvas-node';
+    a.containerEl.appendChild(nodeEl);
+    const nodeObj = { id: 'n1', nodeEl };
+    (a.canvas as any).nodes = new Map([['n1', nodeObj]]);
+    (a.canvas as any).selection = new Set([nodeObj]);
+    app.workspace.leaves = [{ view: a }];
+    app.workspace.activeLeaf = { view: a };
+
+    let clickCb: (() => void) | null = null;
+    const item = {
+      setTitle: () => item,
+      setIcon: () => item,
+      setSection: () => item,
+      onClick: (cb: () => void) => { clickCb = cb; return item; },
+    };
+    const menu = { addItem: (cb: (i: unknown) => void) => cb(item) };
+    app.workspace.__emit('canvas:selection-menu', menu, a.canvas);
+    expect(clickCb).toBeTruthy();
+    clickCb!();
+
+    const popover = document.querySelector('.cmside-style-popover') as HTMLElement;
+    expect(popover).toBeTruthy();
+    const range = popover.querySelector('input[type="range"]') as HTMLInputElement;
+    range.value = '33';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(plugin.settings.canvasStyles?.['A.canvas']?.nodes?.n1?.h1Size).toBe(33);
+    expect(nodeEl.style.getPropertyValue('--cmside-h1-size')).toBe('33');
+  });
+
+  it('canvas:selection-menu ignores multi-selection', async () => {
+    const app = new App();
+    const plugin = await makePlugin(app);
+    const a = makeCanvasView('A.canvas');
+    const n1 = { id: 'n1', nodeEl: document.createElement('div') };
+    const n2 = { id: 'n2', nodeEl: document.createElement('div') };
+    (a.canvas as any).selection = new Set([n1, n2]);
+    app.workspace.leaves = [{ view: a }];
+    app.workspace.activeLeaf = { view: a };
+
+    let added = 0;
+    const item = { setTitle: () => item, setIcon: () => item, setSection: () => item, onClick: () => item };
+    const menu = { addItem: (cb: (i: unknown) => void) => { added++; cb(item); } };
+    app.workspace.__emit('canvas:selection-menu', menu, a.canvas);
+    expect(added).toBe(0);
+  });
+
   it('vault rename remaps the style key; delete prunes it', async () => {
     const app = new App();
     const plugin = await makePlugin(app);

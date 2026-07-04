@@ -222,29 +222,67 @@ class CanvasMdSideEditorPlugin extends Plugin {
       const refEdgeMenu = wsOn?.('canvas:edge-menu', (menu: unknown, edge: unknown) => {
         try {
           const addItem = (menu as { addItem?: (cb: (item: MenuItemLike) => void) => void }).addItem;
-          addItem?.((item) => {
-            item.setSection?.('canvas');
-            item.setTitle?.('Label style…');
-            item.setIcon?.('palette');
-            item.onClick?.(() => this.openEdgeStylePopover(edge as CanvasMenuNode));
-          });
-          // Anchor offsets only surface while the experimental flag is on.
-          if (this.settings.experimentalEdgeAnchors && addItem) {
-            for (const end of ['from', 'to'] as const) {
-              for (const offset of [0.25, 0.5, 0.75] as const) {
-                addItem((item) => {
-                  item.setSection?.('canvas');
-                  item.setTitle?.(`Anchor ${end}: ${offset * 100}%${offset === 0.5 ? ' (default)' : ''}`);
-                  item.setIcon?.('git-commit-horizontal');
-                  item.onClick?.(() => this.setEdgeAnchor(edge as CanvasMenuNode, end, offset));
-                });
-              }
-            }
-          }
+          if (addItem) this.addEdgeStyleMenuItems(addItem, edge as CanvasMenuNode, 'canvas');
         } catch {}
       });
       if (refEdgeMenu) this.registerEvent(refEdgeMenu);
+      // The selection overlay swallows right-clicks on already-selected
+      // items and opens the SELECTION menu instead of the node/edge menu —
+      // which is the path users naturally take (click to select, then
+      // right-click). Mirror our entries there for single-item selections.
+      // That menu declares sections ["title","open","selection",...,"",
+      // "danger"], so items go into 'selection'.
+      const refSelMenu = wsOn?.('canvas:selection-menu', (menu: unknown, canvas: unknown) => {
+        try {
+          const sel = (canvas as { selection?: Set<unknown> } | null)?.selection;
+          if (!(sel instanceof Set) || sel.size !== 1) return;
+          const only = sel.values().next().value as
+            | { id?: string; from?: unknown; to?: unknown; nodeEl?: unknown }
+            | undefined;
+          if (!only?.id) return;
+          const addItem = (menu as { addItem?: (cb: (item: MenuItemLike) => void) => void }).addItem;
+          if (!addItem) return;
+          if (only.from && only.to) {
+            this.addEdgeStyleMenuItems(addItem, only as CanvasMenuNode, 'selection');
+          } else if (only.nodeEl) {
+            addItem((item) => {
+              item.setSection?.('selection');
+              item.setTitle?.('Headline style…');
+              item.setIcon?.('palette');
+              item.onClick?.(() => this.openNodeStylePopover(only as CanvasMenuNode));
+            });
+          }
+        } catch {}
+      });
+      if (refSelMenu) this.registerEvent(refSelMenu);
     } catch {}
+  }
+
+  // Shared builder for the edge entries (Label style + anchor offsets),
+  // used by both the edge context menu and the selection menu.
+  private addEdgeStyleMenuItems(
+    addItem: (cb: (item: MenuItemLike) => void) => void,
+    edge: CanvasMenuNode,
+    section: string,
+  ): void {
+    addItem((item) => {
+      item.setSection?.(section);
+      item.setTitle?.('Label style…');
+      item.setIcon?.('palette');
+      item.onClick?.(() => this.openEdgeStylePopover(edge));
+    });
+    if (this.settings.experimentalEdgeAnchors) {
+      for (const end of ['from', 'to'] as const) {
+        for (const offset of [0.25, 0.5, 0.75] as const) {
+          addItem((item) => {
+            item.setSection?.(section);
+            item.setTitle?.(`Anchor ${end}: ${offset * 100}%${offset === 0.5 ? ' (default)' : ''}`);
+            item.setIcon?.('git-commit-horizontal');
+            item.onClick?.(() => this.setEdgeAnchor(edge, end, offset));
+          });
+        }
+      }
+    }
   }
 
   // Save pasted images to vault and insert markdown links at cursor
