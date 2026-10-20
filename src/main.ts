@@ -491,13 +491,26 @@ class CanvasMdSideEditorPlugin extends Plugin {
     // Use bubbling phase for click so Canvas can update selection first
     for (const t of targets) {
       // click listener removed to avoid false triggers from long-press/drag
-      this.registerDomEvent(t, 'pointerdown', onPointerDown, { capture: true } as AddEventListenerOptions);
-      this.registerDomEvent(t, 'pointermove', onPointerMove);
-      this.registerDomEvent(t, 'pointerup', onPointerUp);
-      this.registerDomEvent(t, 'dblclick', onDblClick, { capture: true } as AddEventListenerOptions);
-      this.registerDomEvent(t, 'focusin', onFocusIn, { capture: true } as AddEventListenerOptions);
-      this.registerDomEvent(t, 'keydown', onKeyDown, { capture: true } as AddEventListenerOptions);
+      this.addCanvasDomEvent(t, 'pointerdown', onPointerDown, { capture: true });
+      this.addCanvasDomEvent(t, 'pointermove', onPointerMove);
+      this.addCanvasDomEvent(t, 'pointerup', onPointerUp);
+      this.addCanvasDomEvent(t, 'dblclick', onDblClick, { capture: true });
+      this.addCanvasDomEvent(t, 'focusin', onFocusIn, { capture: true });
+      this.addCanvasDomEvent(t, 'keydown', onKeyDown, { capture: true });
     }
+  }
+
+  // Canvas-scoped listener: removed by detachFromCanvas() (not only on unload).
+  private addCanvasDomEvent<K extends keyof HTMLElementEventMap>(
+    target: HTMLElement,
+    type: K,
+    handler: (evt: HTMLElementEventMap[K]) => unknown,
+    options?: boolean | AddEventListenerOptions,
+  ): void {
+    const listener = handler as EventListener;
+    target.addEventListener(type, listener, options);
+    const capture = typeof options === 'boolean' ? options : !!options?.capture;
+    this.detachHandlers.push(() => target.removeEventListener(type, listener, capture));
   }
 
   private detachFromCanvas() {
