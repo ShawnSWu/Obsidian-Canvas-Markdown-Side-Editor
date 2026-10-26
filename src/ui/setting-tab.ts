@@ -130,7 +130,7 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
 
     const titleSizeSetting = new Setting(containerEl)
       .setName('Headline title size')
-      .setDesc('Size of the headline title in headline mode, as a percentage of the card\'s width. Bigger value → bigger text. Range 5–60.')
+      .setDesc('Size of the headline title in headline mode, as a percentage of the card\'s shorter side. Bigger value → bigger text. Range 5–60.')
       .addText((tb) => {
         tb.inputEl.type = 'number';
         tb.inputEl.min = '5';

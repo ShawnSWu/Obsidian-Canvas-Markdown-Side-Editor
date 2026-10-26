@@ -24,10 +24,10 @@ export interface CanvasMdSideEditorSettings {
   // file canvas card visually collapses to just its first H1; full content
   // remains accessible through the side editor.
   headlineMode?: boolean;
-  // Title size in headline mode, expressed as a percentage of the card's
-  // width (CSS `cqi` multiplier). Bigger number → bigger text. Clamped to
-  // a sane min/max in CSS so very small / very large cards still look
-  // reasonable.
+  // Title size in headline mode, scaling with the card's shorter side
+  // (multiplier on CSS `cqmin`, so both card axes are respected). Bigger
+  // number → bigger text. Clamped to a sane min/max in CSS so very small /
+  // very large cards still look reasonable.
   headlineH1Size?: number;
 }
 
