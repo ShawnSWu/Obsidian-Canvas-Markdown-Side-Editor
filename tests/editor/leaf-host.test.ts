@@ -42,7 +42,7 @@ vi.mock('obsidian', async () => {
 });
 
 import { App, TFile } from 'obsidian';
-import { MarkdownLeafHost } from '../../../src/ui/markdown-leaf';
+import { MarkdownLeafHost } from '../../src/editor/leaf-host';
 
 beforeEach(() => {
   document.body.innerHTML = '';

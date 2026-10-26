@@ -7,7 +7,7 @@
 // it runs in preview mode (main.ts ~L701), to prevent saveCurrentEdits from
 // dumping a previous card's content into a different node. setViewMode only
 // flips a CSS data-attribute — it never recreates cmView. So after the
-// dispose path runs, toggling preview → editor/both leaves the editor pane
+// dispose path runs, toggling preview → editor leaves the editor pane
 // visible without any CodeMirror inside.
 //
 // This test asserts the user-visible contract: after a card is open and the
@@ -46,10 +46,10 @@ function makeCanvasView(containerEl: HTMLElement): CanvasLikeView {
   } as unknown as CanvasLikeView;
 }
 
-async function makePluginInBothMode(app: App) {
+async function makePluginInEditorMode(app: App) {
   const plugin = new CanvasMdSideEditorPlugin(app, { id: 'test', version: '0.0.0' } as any);
   await plugin.onload();
-  plugin.settings.viewMode = 'both';
+  plugin.settings.viewMode = 'editor';
   return plugin;
 }
 
@@ -60,7 +60,7 @@ beforeEach(() => {
 describe('view-mode toggle leaves editor pane non-blank', () => {
   it('rebuilds cmView when toggling out of preview after dispose path ran', async () => {
     const app = new App();
-    const plugin = await makePluginInBothMode(app);
+    const plugin = await makePluginInEditorMode(app);
 
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -69,7 +69,7 @@ describe('view-mode toggle leaves editor pane non-blank', () => {
 
     const node: CanvasNode = { id: 'n1', type: 'text', text: 'hello world' } as CanvasNode;
 
-    // 1. Open card in 'both' — cmView created.
+    // 1. Open card in 'editor' — cmView created.
     await (plugin as any).openEditorForNode(view, node);
     expect((plugin as any).cmView).toBeTruthy();
 
@@ -78,9 +78,9 @@ describe('view-mode toggle leaves editor pane non-blank', () => {
     await (plugin as any).openEditorForNode(view, node);
     expect((plugin as any).cmView).toBeNull();
 
-    // 3. Toggle back to 'both' — cmView must be rebuilt, otherwise
+    // 3. Toggle back to 'editor' — cmView must be rebuilt, otherwise
     //    the editor pane becomes visible-but-blank.
-    await plugin.setViewMode('both');
+    await plugin.setViewMode('editor');
     expect((plugin as any).cmView).toBeTruthy();
   });
 
@@ -109,7 +109,7 @@ describe('view-mode toggle leaves editor pane non-blank', () => {
 
   it('does not rebuild cmView when toggling without an open card', async () => {
     const app = new App();
-    const plugin = await makePluginInBothMode(app);
+    const plugin = await makePluginInEditorMode(app);
 
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -119,7 +119,7 @@ describe('view-mode toggle leaves editor pane non-blank', () => {
     // No card opened. Toggle around — cmView should stay null because
     // there is nothing to rebuild for.
     await plugin.setViewMode('preview');
-    await plugin.setViewMode('both');
+    await plugin.setViewMode('editor');
     expect((plugin as any).cmView).toBeNull();
   });
 });

@@ -214,6 +214,28 @@ export class Setting {
     this.settingEl.appendChild(selectEl);
     return this;
   }
+  addSlider(cb: (sl: any) => void) {
+    const inputEl = document.createElement('input');
+    inputEl.type = 'range';
+    const sl = {
+      inputEl,
+      setLimits: (min: number, max: number, step: number) => {
+        inputEl.min = String(min);
+        inputEl.max = String(max);
+        inputEl.step = String(step);
+        return sl;
+      },
+      setValue: (v: number) => { inputEl.value = String(v); return sl; },
+      setDynamicTooltip: () => sl,
+      onChange: (handler: (v: number) => void) => {
+        inputEl.addEventListener('change', () => handler(Number(inputEl.value)));
+        return sl;
+      },
+    };
+    cb(sl);
+    this.settingEl.appendChild(inputEl);
+    return this;
+  }
 }
 
 export class MarkdownRenderer {

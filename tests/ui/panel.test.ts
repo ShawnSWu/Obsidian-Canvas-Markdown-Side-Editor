@@ -40,7 +40,10 @@ describe('PanelController.create', () => {
     expect(refs.closeBtn.classList.contains('cmside-close-btn')).toBe(true);
     expect(refs.editorRootEl.classList.contains('cmside-editor-root')).toBe(true);
     expect(refs.previewRootEl.classList.contains('cmside-preview-root')).toBe(true);
-    expect(refs.panelEl.querySelector('.cmside-divider')).toBeTruthy();
+    // The split-mode divider was retired along with the 'both' view mode.
+    expect(refs.panelEl.querySelector('.cmside-divider')).toBeFalsy();
+    expect(refs.panelEl.querySelector('.cmside-font-bar')).toBeTruthy();
+    expect(refs.panelEl.querySelector('.cmside-font-range')).toBeTruthy();
     expect(refs.panelEl.querySelector('.cmside-panel-resizer')).toBeTruthy();
   });
 
@@ -68,11 +71,10 @@ describe('PanelController.create', () => {
     expect(refs.panelEl.classList.contains('cmside-width-w480')).toBe(true);
   });
 
-  it('captures theme defaults for font sizes when settings are unset', () => {
-    const { controller, settings, persistSettings } = setup({ editorFontSize: null, previewFontSize: null });
+  it('captures the theme default as the font size when unset', () => {
+    const { controller, settings, persistSettings } = setup({ fontSize: null });
     controller.create();
-    expect(settings.editorFontSize).toBeGreaterThanOrEqual(8);
-    expect(settings.previewFontSize).toBeGreaterThanOrEqual(8);
+    expect(settings.fontSize).toBeGreaterThanOrEqual(8);
     expect(persistSettings).toHaveBeenCalled();
   });
 });
@@ -85,11 +87,11 @@ describe('PanelController setViewMode', () => {
     expect(refs.panelEl.getAttribute('data-view-mode')).toBe('editor');
   });
 
-  it('writes data-view-mode="both" and shows both panes', () => {
+  it('writes data-view-mode="live" and shows the editor pane', () => {
     const { controller } = setup();
     const refs = controller.create();
-    controller.setViewMode('both');
-    expect(refs.panelEl.getAttribute('data-view-mode')).toBe('both');
+    controller.setViewMode('live');
+    expect(refs.panelEl.getAttribute('data-view-mode')).toBe('live');
   });
 
   it('writes data-view-mode="preview" and hides editor pane', () => {
@@ -127,24 +129,59 @@ describe('PanelController button handlers', () => {
 });
 
 describe('PanelController.applyFontSizes', () => {
-  it('maps editor and preview font sizes to nearest preset classes', () => {
-    const { controller, settings } = setup({ editorFontSize: 14, previewFontSize: 18 });
+  it('writes the font size to both panes as CSS variables', () => {
+    const { controller, settings } = setup({ fontSize: 16 });
     const refs = controller.create();
-    settings.editorFontSize = 14;
-    settings.previewFontSize = 18;
+    settings.fontSize = 20;
     controller.applyFontSizes();
-    expect(refs.panelEl.classList.contains('cmside-editor-font-md')).toBe(true);
-    expect(refs.panelEl.classList.contains('cmside-preview-font-xl')).toBe(true);
+    expect(refs.panelEl.style.getPropertyValue('--cmside-editor-font-size')).toBe('20px');
+    expect(refs.panelEl.style.getPropertyValue('--cmside-preview-font-size')).toBe('20px');
   });
 
-  it('removes the previous font class when the size changes', () => {
-    const { controller, settings } = setup({ editorFontSize: 12, previewFontSize: 12 });
+  it('updates the CSS variables when the size changes', () => {
+    const { controller, settings } = setup({ fontSize: 12 });
     const refs = controller.create();
-    expect(refs.panelEl.classList.contains('cmside-editor-font-xs')).toBe(true);
-    settings.editorFontSize = 18;
+    expect(refs.panelEl.style.getPropertyValue('--cmside-editor-font-size')).toBe('12px');
+    settings.fontSize = 18;
     controller.applyFontSizes();
-    expect(refs.panelEl.classList.contains('cmside-editor-font-xs')).toBe(false);
-    expect(refs.panelEl.classList.contains('cmside-editor-font-xl')).toBe(true);
+    expect(refs.panelEl.style.getPropertyValue('--cmside-editor-font-size')).toBe('18px');
+    expect(refs.panelEl.style.getPropertyValue('--cmside-preview-font-size')).toBe('18px');
+  });
+});
+
+describe('PanelController font-size slider', () => {
+  it('initializes the slider from the persisted font size', () => {
+    const { controller } = setup({ fontSize: 20 });
+    const refs = controller.create();
+    const range = refs.panelEl.querySelector('.cmside-font-range') as HTMLInputElement;
+    expect(range.value).toBe('20');
+  });
+
+  it('dragging the slider updates settings and both panes immediately', () => {
+    const { controller, settings } = setup({ fontSize: 16 });
+    const refs = controller.create();
+    const range = refs.panelEl.querySelector('.cmside-font-range') as HTMLInputElement;
+    range.value = '24';
+    range.dispatchEvent(new Event('input'));
+    expect(settings.fontSize).toBe(24);
+    expect(refs.panelEl.style.getPropertyValue('--cmside-editor-font-size')).toBe('24px');
+    expect(refs.panelEl.style.getPropertyValue('--cmside-preview-font-size')).toBe('24px');
+    expect(refs.panelEl.querySelector('.cmside-font-bar-value')?.textContent).toBe('24px');
+  });
+
+  it('is mode-independent: the same size applies in every view mode', () => {
+    const { controller } = setup({ viewMode: 'editor', fontSize: 13 });
+    const refs = controller.create();
+    controller.setViewMode('preview');
+    const range = refs.panelEl.querySelector('.cmside-font-range') as HTMLInputElement;
+    expect(range.value).toBe('13');
+    expect(refs.panelEl.style.getPropertyValue('--cmside-preview-font-size')).toBe('13px');
+  });
+
+  it('applies the persisted table scale as a CSS variable on create', () => {
+    const { controller } = setup({ tableFontScale: 0.6 });
+    const refs = controller.create();
+    expect(refs.panelEl.style.getPropertyValue('--cmside-table-font-scale')).toBe('0.6em');
   });
 });
 
@@ -342,7 +379,7 @@ describe('PanelController floating mode (issue #11)', () => {
   });
 
   it('clicks on action buttons do not start a drag', async () => {
-    const { container, controller, persistSettings } = setup({ dockPosition: 'floating', editorFontSize: 14, previewFontSize: 14 });
+    const { container, controller, persistSettings } = setup({ dockPosition: 'floating', fontSize: 14 });
     stubRect(container, { left: 0, top: 0, width: 1200, height: 800 });
     const refs = controller.create();
     stubRect(refs.panelEl, { left: 100, top: 100, width: 400, height: 300 });
@@ -399,7 +436,7 @@ describe('PanelController floating mode (issue #11)', () => {
   });
 
   it('drag handler is a no-op when the panel is not in floating mode', () => {
-    const { container, controller, persistSettings } = setup({ dockPosition: 'right', editorFontSize: 14, previewFontSize: 14 });
+    const { container, controller, persistSettings } = setup({ dockPosition: 'right', fontSize: 14 });
     stubRect(container, { left: 0, top: 0, width: 1200, height: 800 });
     const refs = controller.create();
     persistSettings.mockClear();

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseTransform, screenToCanvasPoint, findNodeIdAtPoint } from '../../../src/utils/canvas';
-import type { CanvasLikeView } from '../../../src/types';
+import { parseTransform, screenToCanvasPoint } from '../../src/canvas/geometry';
+import { findNodeIdAtPoint } from '../../src/canvas/hit-test';
+import type { CanvasLikeView } from '../../src/types';
 
 // Override getComputedStyle to control transform/position values per-element.
 const transformMap = new WeakMap<Element, string>();
@@ -64,13 +65,18 @@ describe('screenToCanvasPoint', () => {
   });
 
   it('applies inverse transform with scale and translate', () => {
+    // Real Obsidian canvas DOM: transform lives on the inner `.canvas`
+    // element, while the viewport stays untransformed.
     const container = document.createElement('div');
     const viewport = document.createElement('div');
     viewport.className = 'canvas-viewport';
+    const canvasEl = document.createElement('div');
+    canvasEl.className = 'canvas';
+    viewport.appendChild(canvasEl);
     container.appendChild(viewport);
     document.body.appendChild(container);
     setRect(viewport, { left: 100, top: 50, width: 800, height: 600 });
-    setTransform(viewport, 'matrix(2, 0, 0, 2, 10, 20)');
+    setTransform(canvasEl, 'matrix(2, 0, 0, 2, 10, 20)');
 
     const view = { containerEl: container } as unknown as CanvasLikeView;
     // clientX=100 + 10 + 2*x  => x = (100 - 100 - 10) / 2 = -5
@@ -78,6 +84,50 @@ describe('screenToCanvasPoint', () => {
     expect(screenToCanvasPoint(view, 100, 50)).toEqual({ x: -5, y: -10 });
     // clientX=210, clientY=170 => x=(210-100-10)/2=50, y=(170-50-20)/2=50
     expect(screenToCanvasPoint(view, 210, 170)).toEqual({ x: 50, y: 50 });
+  });
+
+  it('ignores the transform carrier’s own bounding rect (zoomed-out canvas)', () => {
+    // Regression: the old code read getBoundingClientRect() from the
+    // TRANSFORMED element, double-counting the pan/zoom and producing
+    // garbage coordinates — blank clicks then "hit" phantom nodes.
+    const container = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'canvas-wrapper';
+    const canvasEl = document.createElement('div');
+    canvasEl.className = 'canvas';
+    wrapper.appendChild(canvasEl);
+    container.appendChild(wrapper);
+    document.body.appendChild(container);
+    setRect(wrapper, { left: 0, top: 0, width: 1000, height: 800 });
+    // The transformed element's rect reflects the visual (already
+    // transformed) box — the conversion must not use it.
+    setRect(canvasEl, { left: 120, top: 60, width: 500, height: 400 });
+    setTransform(canvasEl, 'matrix(0.5, 0, 0, 0.5, 120, 60)');
+
+    const view = { containerEl: container } as unknown as CanvasLikeView;
+    // x = (220 - 0 - 120) / 0.5 = 200 ; y = (160 - 0 - 60) / 0.5 = 200
+    expect(screenToCanvasPoint(view, 220, 160)).toEqual({ x: 200, y: 200 });
+  });
+
+  it('never mistakes a positioned node’s transform for the zoom transform', () => {
+    // Canvas at rest (`.canvas` has no transform) while node elements use
+    // transforms for their own positioning — identity math must win.
+    const container = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'canvas-wrapper';
+    const canvasEl = document.createElement('div');
+    canvasEl.className = 'canvas';
+    const node = document.createElement('div');
+    node.className = 'canvas-node';
+    canvasEl.appendChild(node);
+    wrapper.appendChild(canvasEl);
+    container.appendChild(wrapper);
+    document.body.appendChild(container);
+    setRect(wrapper, { left: 100, top: 50, width: 800, height: 600 });
+    setTransform(node, 'matrix(1, 0, 0, 1, 300, 200)');
+
+    const view = { containerEl: container } as unknown as CanvasLikeView;
+    expect(screenToCanvasPoint(view, 150, 90)).toEqual({ x: 50, y: 40 });
   });
 });
 

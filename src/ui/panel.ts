@@ -10,6 +10,11 @@ const DOCK_CLASSES: Record<DockPosition, string> = {
 };
 const ALL_DOCK_CLASSES = Object.values(DOCK_CLASSES);
 
+// Font-size slider range (px) shown at the top of the panel.
+const FONT_MIN = 8;
+const FONT_MAX = 32;
+const FONT_FALLBACK = 16;
+
 export type PanelRefs = {
   panelEl: HTMLElement;
   editorRootEl: HTMLElement;
@@ -30,19 +35,17 @@ export class PanelController {
   private toggleBtn!: HTMLButtonElement;
   private closeBtn!: HTMLButtonElement;
   private titleEl!: HTMLElement;
-  private dividerEl!: HTMLElement;
   private editorPaneEl!: HTMLElement;
   private previewPaneEl!: HTMLElement;
   private panelResizerEl!: HTMLElement;
   private cornerResizerEl!: HTMLElement;
   private toolbarEl!: HTMLElement;
+  private fontRangeEl!: HTMLInputElement;
+  private fontValueEl!: HTMLElement;
   private detachFns: Array<() => void> = [];
   private containerPosPatched = false;
   // Track currently applied preset classes so we can swap cleanly
   private currentPanelWidthClass: string | null = null;
-  private currentEditorWidthClass: string | null = null;
-  private currentEditorFontClass: string | null = null;
-  private currentPreviewFontClass: string | null = null;
 
   constructor(
     container: HTMLElement,
@@ -79,13 +82,22 @@ export class PanelController {
     const toggleBtn = actionsEl.createEl('button', { cls: 'cmside-toggle-preview-btn' });
     const closeBtn = actionsEl.createEl('button', { cls: 'cmside-close-btn', text: '×' });
 
+    // Font-size slider bar: directly adjusts the panel's font size (px).
+    const fontBar = panel.createDiv({ cls: 'cmside-font-bar' });
+    fontBar.createEl('span', { cls: 'cmside-font-bar-icon', text: 'A' });
+    const fontRange = fontBar.createEl('input', { cls: 'cmside-font-range' });
+    fontRange.type = 'range';
+    fontRange.min = String(FONT_MIN);
+    fontRange.max = String(FONT_MAX);
+    fontRange.step = '1';
+    fontRange.setAttribute('aria-label', 'Font size');
+    const fontValue = fontBar.createEl('span', { cls: 'cmside-font-bar-value' });
+
     const split = panel.createDiv({ cls: 'cmside-split' });
     const editorPane = split.createDiv({ cls: 'cmside-pane cmside-pane-editor' });
     const editorHeader = editorPane.createDiv({ cls: 'cmside-pane-header' });
     editorHeader.setText('Editor');
     const editorRoot = editorPane.createDiv({ cls: 'cmside-editor-root markdown-source-view cm-s-obsidian mod-cm6' });
-
-    const divider = split.createDiv({ cls: 'cmside-divider', title: 'Drag to resize' });
 
     const previewPane = split.createDiv({ cls: 'cmside-pane cmside-pane-preview' });
     const previewHeader = previewPane.createDiv({ cls: 'cmside-pane-header' });
@@ -113,38 +125,35 @@ export class PanelController {
     this.toggleBtn = toggleBtn;
     this.closeBtn = closeBtn;
     this.titleEl = titleEl;
-    this.dividerEl = divider;
     this.editorPaneEl = editorPane;
     this.previewPaneEl = previewPane;
     this.panelResizerEl = panelResizer;
     this.cornerResizerEl = cornerResizer;
     this.toolbarEl = toolbar;
+    this.fontRangeEl = fontRange;
+    this.fontValueEl = fontValue;
 
     // Initialize view mode from settings (issue #16). This is the single
     // source of truth for editor/preview pane visibility.
-    const initialMode: ViewMode = (this.getSettings()?.viewMode ?? 'both') as ViewMode;
+    const initialMode: ViewMode = (this.getSettings()?.viewMode ?? 'live') as ViewMode;
     panel.setAttribute('data-view-mode', initialMode);
 
-    // Initialize and apply font sizes from settings (capture theme defaults if unset or legacy <= 0)
+    // Initialize and apply font sizes from settings (capture the theme's
+    // font size as the base if unset or legacy <= 0)
     try {
       const s = this.getSettings();
       let changed = false;
-      // Capture current computed sizes as defaults if null
       if (s) {
-        if (s.editorFontSize == null || (typeof s.editorFontSize === 'number' && s.editorFontSize <= 0)) {
+        if (s.fontSize == null || (typeof s.fontSize === 'number' && s.fontSize <= 0)) {
           const ef = parseInt(getComputedStyle(editorRoot).fontSize || '16', 10);
-          if (isFinite(ef)) { s.editorFontSize = Math.max(8, Math.round(ef)); changed = true; }
-        }
-        if (s.previewFontSize == null || (typeof s.previewFontSize === 'number' && s.previewFontSize <= 0)) {
-          const pf = parseInt(getComputedStyle(previewRoot).fontSize || '16', 10);
-          if (isFinite(pf)) { s.previewFontSize = Math.max(8, Math.round(pf)); changed = true; }
+          if (isFinite(ef)) { s.fontSize = Math.max(8, Math.round(ef)); changed = true; }
         }
         if (changed) {
           try { this.persistSettings(s); } catch {}
         }
         // Apply sizes via CSS variables on the panel element
         if (this.panelEl) {
-          this.applyFontSizeClassesFromSettings(s);
+          this.applyFontSizeVarsFromSettings(s);
         }
       }
     } catch {}
@@ -154,7 +163,7 @@ export class PanelController {
 
     // Listeners
     this.setupPanelResize(panel);
-    this.setupSplitResize(panel, editorPane, previewPane, divider);
+    this.setupFontBar();
     this.setupScrollGuards(panel);
     this.setupFloatingDrag(panel);
     this.setupFloatingResize(panel);
@@ -192,7 +201,8 @@ export class PanelController {
   applyFontSizes() {
     try {
       const s = this.getSettings();
-      if (this.panelEl && s) this.applyFontSizeClassesFromSettings(s);
+      if (this.panelEl && s) this.applyFontSizeVarsFromSettings(s);
+      this.syncFontBar();
     } catch {}
   }
 
@@ -359,49 +369,47 @@ export class PanelController {
     this.detachFns.push(() => this.panelResizerEl.removeEventListener('dblclick', onPanelResizerDblClick));
   }
 
-  private setupSplitResize(panel: HTMLElement, editorPane: HTMLElement, previewPane: HTMLElement, divider: HTMLElement) {
-    const onDividerPointerDown = (ev: PointerEvent) => {
-      ev.preventDefault();
-      const panelRect = (panel.querySelector('.cmside-split') as HTMLElement).getBoundingClientRect();
-      const startX = ev.clientX;
-      const editorRect = editorPane.getBoundingClientRect();
-      const dividerRect = divider.getBoundingClientRect();
-      const minWidth = 200; // px
-      const maxWidth = Math.max(minWidth, panelRect.width - dividerRect.width - minWidth);
-      panel.classList.add('resizing');
-
-      const onMove = (mv: PointerEvent) => {
-        const delta = mv.clientX - startX;
-        const newW = Math.min(maxWidth, Math.max(minWidth, editorRect.width + delta));
-        // Lock editor width via preset class; preview flex is handled by CSS
-        panel.classList.add('cmside-editor-fixed');
-        const cls = this.mapToEditorWidthClass(Math.round(newW));
-        if (cls && this.currentEditorWidthClass !== cls) {
-          if (this.currentEditorWidthClass) panel.classList.remove(this.currentEditorWidthClass);
-          panel.classList.add(cls);
-          this.currentEditorWidthClass = cls;
-        }
-      };
-      const onUp = async () => {
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-        panel.classList.remove('resizing');
-        // Persist width to settings
-        try {
-          const s = this.getSettings();
-          const newWidth = panel.getBoundingClientRect().width;
-          if (newWidth && isFinite(newWidth)) {
-            s.defaultPanelWidth = Math.round(newWidth);
-            await this.persistSettings(s);
-          }
-        } catch {}
-      };
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp, { once: true });
+  // Font-size sliders: live-update the CSS variables and the settings
+  // object on every input event, but only persist to disk after the
+  // user pauses (400ms debounce, shared by both sliders) so dragging
+  // doesn't spam saveData.
+  private setupFontBar() {
+    let persistTimer: number | null = null;
+    const schedulePersist = () => {
+      if (persistTimer != null) window.clearTimeout(persistTimer);
+      persistTimer = window.setTimeout(() => {
+        persistTimer = null;
+        try { this.persistSettings(this.getSettings()); } catch {}
+      }, 400);
     };
+    this.detachFns.push(() => { if (persistTimer != null) window.clearTimeout(persistTimer); });
 
-    divider.addEventListener('pointerdown', onDividerPointerDown);
-    this.detachFns.push(() => divider.removeEventListener('pointerdown', onDividerPointerDown));
+    const range = this.fontRangeEl;
+    if (range) {
+      const onInput = () => {
+        const px = Number(range.value);
+        if (!isFinite(px)) return;
+        const s = this.getSettings();
+        if (!s) return;
+        s.fontSize = px;
+        try { this.applyFontSizeVarsFromSettings(s); } catch {}
+        this.fontValueEl.setText(`${px}px`);
+        schedulePersist();
+      };
+      range.addEventListener('input', onInput);
+      this.detachFns.push(() => range.removeEventListener('input', onInput));
+    }
+
+    this.syncFontBar();
+  }
+
+  private syncFontBar() {
+    if (this.fontRangeEl && this.fontValueEl) {
+      const size = this.getSettings()?.fontSize;
+      const px = typeof size === 'number' && size > 0 ? Math.round(size) : FONT_FALLBACK;
+      this.fontRangeEl.value = String(px);
+      this.fontValueEl.setText(`${px}px`);
+    }
   }
 
   private setupScrollGuards(panel: HTMLElement) {
@@ -525,7 +533,7 @@ export class PanelController {
     this.detachFns.push(() => this.cornerResizerEl.removeEventListener('pointerdown', onPointerDown));
   }
 
-  // Helpers: map numeric values to preset classes and apply font-size classes
+  // Helpers: map numeric values to preset classes (panel/editor sizing)
   private mapToPanelWidthClass(px: number): string | null {
     // Quantize to 300..800, step 20 -> class: cmside-width-w{px}
     const q = this.quantize(px, 300, 800, 20);
@@ -538,45 +546,6 @@ export class PanelController {
     return q ? `cmside-height-h${q}` : null;
   }
 
-  private mapToEditorWidthClass(px: number): string | null {
-    // Quantize to 200..800, step 20 -> class: cmside-editor-w-{px}
-    const q = this.quantize(px, 200, 800, 20);
-    return q ? `cmside-editor-w-${q}` : null;
-  }
-
-  private mapToEditorFontClass(px: number): string | null {
-    const presets: Array<{ cls: string; px: number }> = [
-      { cls: 'cmside-editor-font-xs', px: 12 },
-      { cls: 'cmside-editor-font-sm', px: 13 },
-      { cls: 'cmside-editor-font-md', px: 14 },
-      { cls: 'cmside-editor-font-lg', px: 16 },
-      { cls: 'cmside-editor-font-xl', px: 18 },
-    ];
-    return this.pickNearestPreset(px, presets);
-  }
-
-  private mapToPreviewFontClass(px: number): string | null {
-    const presets: Array<{ cls: string; px: number }> = [
-      { cls: 'cmside-preview-font-xs', px: 12 },
-      { cls: 'cmside-preview-font-sm', px: 13 },
-      { cls: 'cmside-preview-font-md', px: 14 },
-      { cls: 'cmside-preview-font-lg', px: 16 },
-      { cls: 'cmside-preview-font-xl', px: 18 },
-    ];
-    return this.pickNearestPreset(px, presets);
-  }
-
-  private pickNearestPreset(px: number, presets: Array<{ cls: string; px: number }>): string | null {
-    if (!isFinite(px)) return null;
-    let best: { cls: string; px: number } | null = null;
-    let bestDiff = Infinity;
-    for (const p of presets) {
-      const d = Math.abs(px - p.px);
-      if (d < bestDiff) { best = p; bestDiff = d; }
-    }
-    return best?.cls ?? null;
-  }
-
   private quantize(px: number, min: number, max: number, step: number): number | null {
     if (!isFinite(px)) return null;
     const clamped = Math.max(min, Math.min(max, px));
@@ -584,33 +553,24 @@ export class PanelController {
     return q;
   }
 
-  private applyFontSizeClassesFromSettings(s: CanvasMdSideEditorSettings) {
+  // Apply font sizes as continuous CSS variables on the panel element.
+  // Both panes share the single fontSize; rendered tables scale off it
+  // via the table-font-scale variable.
+  private applyFontSizeVarsFromSettings(s: CanvasMdSideEditorSettings) {
     if (!this.panelEl) return;
-    // Editor font
-    if (this.currentEditorFontClass) this.panelEl.classList.remove(this.currentEditorFontClass);
-    if (s.editorFontSize != null && s.editorFontSize > 0) {
-      const cls = this.mapToEditorFontClass(Math.round(s.editorFontSize));
-      if (cls) {
-        this.panelEl.classList.add(cls);
-        this.currentEditorFontClass = cls;
-      } else {
-        this.currentEditorFontClass = null;
-      }
+    if (s.fontSize != null && s.fontSize > 0) {
+      const px = `${Math.round(s.fontSize)}px`;
+      this.panelEl.style.setProperty('--cmside-editor-font-size', px);
+      this.panelEl.style.setProperty('--cmside-preview-font-size', px);
     } else {
-      this.currentEditorFontClass = null;
+      this.panelEl.style.removeProperty('--cmside-editor-font-size');
+      this.panelEl.style.removeProperty('--cmside-preview-font-size');
     }
-    // Preview font
-    if (this.currentPreviewFontClass) this.panelEl.classList.remove(this.currentPreviewFontClass);
-    if (s.previewFontSize != null && s.previewFontSize > 0) {
-      const cls = this.mapToPreviewFontClass(Math.round(s.previewFontSize));
-      if (cls) {
-        this.panelEl.classList.add(cls);
-        this.currentPreviewFontClass = cls;
-      } else {
-        this.currentPreviewFontClass = null;
-      }
+    // Rendered table scale (fraction of the pane font, as an em value)
+    if (typeof s.tableFontScale === 'number' && s.tableFontScale > 0) {
+      this.panelEl.style.setProperty('--cmside-table-font-scale', `${s.tableFontScale}em`);
     } else {
-      this.currentPreviewFontClass = null;
+      this.panelEl.style.removeProperty('--cmside-table-font-scale');
     }
   }
 

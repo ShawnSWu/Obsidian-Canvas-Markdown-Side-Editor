@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractTitleFromText, patchFirstLineWithTitle, buildRenamePath } from '../../../src/utils/card-title';
+import { extractTitleFromText, patchFirstLineWithTitle, buildRenamePath } from '../../src/features/card-title';
 
 describe('extractTitleFromText', () => {
   it('returns the first line for plain text', () => {

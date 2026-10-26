@@ -332,10 +332,8 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed
   padding: 0;
   overscroll-behavior: contain;
 }
-/* Preview-only state (issue #16): hide editor and divider; make preview full width.
-   Toggle button stays visible — it now cycles through all three states. */
+/* Preview-only state (issue #16): hide editor pane; make preview full width. */
 .canvas-md-side-editor-panel[data-view-mode="preview"] .cmside-pane-editor { display: none; }
-.canvas-md-side-editor-panel[data-view-mode="preview"] .cmside-divider { display: none; }
 .canvas-md-side-editor-panel[data-view-mode="preview"] .cmside-pane-preview { flex: 1 1 auto; }
 /* Panel left-edge resizer */
 .canvas-md-side-editor-panel .cmside-panel-resizer {
@@ -366,15 +364,13 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed
   background: var(--background-secondary);
   color: var(--text-muted);
 }
-/* Editor-only state (issue #16): hide preview pane and divider; editor goes full width. */
+/* Editor-only state (issue #16): hide preview pane; editor goes full width. */
 .canvas-md-side-editor-panel[data-view-mode="editor"] .cmside-pane-preview { display: none; }
-.canvas-md-side-editor-panel[data-view-mode="editor"] .cmside-divider { display: none; }
 .canvas-md-side-editor-panel[data-view-mode="editor"] .cmside-pane-editor { flex: 1 1 auto !important; }
 .canvas-md-side-editor-panel[data-view-mode="editor"] .cmside-editor-root { border-right: none; }
 /* Live Preview state (issue #20): same layout as editor-only — the leaf
    renders Live Preview inline so the side preview pane has nothing to add. */
 .canvas-md-side-editor-panel[data-view-mode="live"] .cmside-pane-preview { display: none; }
-.canvas-md-side-editor-panel[data-view-mode="live"] .cmside-divider { display: none; }
 .canvas-md-side-editor-panel[data-view-mode="live"] .cmside-pane-editor { flex: 1 1 auto !important; }
 .canvas-md-side-editor-panel[data-view-mode="live"] .cmside-editor-root { border-right: none; }
 .canvas-md-side-editor-panel .cmside-editor-root {
@@ -384,7 +380,21 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed
   background: var(--background-primary);
   border-right: 1px solid var(--background-modifier-border);
   font-size: var(--cmside-editor-font-size, inherit);
+  /* The Live Preview leaf sizes its text off Obsidian's --font-text-size,
+     which ignores our inherited font-size entirely. Re-point it at the
+     panel's own variable so the font slider reaches the leaf too. */
+  --font-text-size: var(--cmside-editor-font-size, inherit);
   cursor: text;
+}
+/* Themes may (re)define --font-text-size or an outright px font-size on
+   inner leaf containers, which beats the inherited value from our root.
+   Pin both at every level between the root and the text. */
+.canvas-md-side-editor-panel .cmside-editor-root .view-content,
+.canvas-md-side-editor-panel .cmside-editor-root .markdown-source-view,
+.canvas-md-side-editor-panel .cmside-editor-root .cm-editor,
+.canvas-md-side-editor-panel .cmside-editor-root .cm-content {
+  --font-text-size: var(--cmside-editor-font-size, inherit);
+  font-size: var(--cmside-editor-font-size, inherit);
 }
 .canvas-md-side-editor-panel .cmside-editor-root .cm-editor { height: 100%; }
 .canvas-md-side-editor-panel .cmside-editor-root .cm-scroller {
@@ -411,70 +421,61 @@ body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed
   font-size: var(--cmside-preview-font-size, inherit);
 }
 .canvas-md-side-editor-panel .cmside-preview-root.markdown-preview-view { height: 100%; min-height: 0; }
-.canvas-md-side-editor-panel .cmside-preview-root img { max-width: 100%; height: auto; }
-
-.canvas-md-side-editor-panel.cmside-editor-font-xs { --cmside-editor-font-size: 12px; }
-.canvas-md-side-editor-panel.cmside-editor-font-sm { --cmside-editor-font-size: 13px; }
-.canvas-md-side-editor-panel.cmside-editor-font-md { --cmside-editor-font-size: 14px; }
-.canvas-md-side-editor-panel.cmside-editor-font-lg { --cmside-editor-font-size: 16px; }
-.canvas-md-side-editor-panel.cmside-editor-font-xl { --cmside-editor-font-size: 18px; }
-
-.canvas-md-side-editor-panel.cmside-preview-font-xs { --cmside-preview-font-size: 12px; }
-.canvas-md-side-editor-panel.cmside-preview-font-sm { --cmside-preview-font-size: 13px; }
-.canvas-md-side-editor-panel.cmside-preview-font-md { --cmside-preview-font-size: 14px; }
-.canvas-md-side-editor-panel.cmside-preview-font-lg { --cmside-preview-font-size: 16px; }
-.canvas-md-side-editor-panel.cmside-preview-font-xl { --cmside-preview-font-size: 18px; }
-
-.canvas-md-side-editor-panel .cmside-divider {
-  width: 6px;
-  cursor: col-resize;
-  background: var(--background-modifier-border);
-  opacity: 0.7;
+/* Image sizing (shared by preview mode and Live Preview): images fill the
+   panel width; per-image resizing is handled by Obsidian's native drag
+   handles, so there is deliberately no scale setting. */
+.canvas-md-side-editor-panel .cmside-editor-root img,
+.canvas-md-side-editor-panel .cmside-preview-root img,
+.canvas-md-side-editor-panel .markdown-rendered img {
+  max-width: 100%;
+  height: auto;
 }
-.canvas-md-side-editor-panel .cmside-divider:hover { background: var(--interactive-accent); opacity: 0.85; }
-.canvas-md-side-editor-panel.resizing, .canvas-md-side-editor-panel.resizing * { user-select: none; cursor: col-resize; }
 
-/* When the editor width is locked via divider drag, use a CSS variable */
-.canvas-md-side-editor-panel.cmside-editor-fixed .cmside-pane-editor { flex: 0 0 var(--cmside-editor-width, 320px); }
-.canvas-md-side-editor-panel.cmside-editor-fixed .cmside-pane-preview { flex: 1 1 auto; }
+/* Table font sizing (shared by preview mode and Live Preview).
+   Obsidian sizes rendered tables off --table-text-size / --table-header-size
+   (fixed px from the theme), so tables ignore the container font-size we
+   set. Remap both to the panel's user-adjustable scale variable so tables
+   scale with the font slider everywhere — reading preview, and Live
+   Preview's table widgets which render inside the editor root. */
+.canvas-md-side-editor-panel .cmside-editor-root,
+.canvas-md-side-editor-panel .cmside-preview-root,
+.canvas-md-side-editor-panel .markdown-rendered {
+  --table-text-size: var(--cmside-table-font-scale, 0.75em);
+  --table-header-size: var(--cmside-table-font-scale, 0.75em);
+}
 
-/* Preset editor widths for divider drag locking */
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-320 { --cmside-editor-width: 320px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-420 { --cmside-editor-width: 420px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-560 { --cmside-editor-width: 560px; }
+/* Toolbar font-size slider */
+.canvas-md-side-editor-panel .cmside-font-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+.canvas-md-side-editor-panel .cmside-font-bar-icon {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  user-select: none;
+}
+.canvas-md-side-editor-panel .cmside-font-range {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 14px;
+  padding: 0;
+}
+.canvas-md-side-editor-panel .cmside-font-bar-value {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
 
-/* Quantized editor widths (200..800 step 20) */
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-200 { --cmside-editor-width: 200px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-220 { --cmside-editor-width: 220px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-240 { --cmside-editor-width: 240px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-260 { --cmside-editor-width: 260px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-280 { --cmside-editor-width: 280px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-300 { --cmside-editor-width: 300px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-320 { --cmside-editor-width: 320px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-340 { --cmside-editor-width: 340px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-360 { --cmside-editor-width: 360px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-380 { --cmside-editor-width: 380px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-400 { --cmside-editor-width: 400px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-420 { --cmside-editor-width: 420px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-440 { --cmside-editor-width: 440px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-460 { --cmside-editor-width: 460px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-480 { --cmside-editor-width: 480px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-500 { --cmside-editor-width: 500px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-520 { --cmside-editor-width: 520px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-540 { --cmside-editor-width: 540px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-560 { --cmside-editor-width: 560px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-580 { --cmside-editor-width: 580px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-600 { --cmside-editor-width: 600px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-620 { --cmside-editor-width: 620px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-640 { --cmside-editor-width: 640px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-660 { --cmside-editor-width: 660px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-680 { --cmside-editor-width: 680px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-700 { --cmside-editor-width: 700px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-720 { --cmside-editor-width: 720px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-740 { --cmside-editor-width: 740px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-760 { --cmside-editor-width: 760px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-780 { --cmside-editor-width: 780px; }
-.canvas-md-side-editor-panel.cmside-editor-fixed.cmside-editor-w-800 { --cmside-editor-width: 800px; }
+/* Floating mode: keep the font bar interactive while dragging via toolbar */
+.canvas-md-side-editor-panel.cmside-dock-floating .cmside-font-bar { cursor: default; }
 
 /* Optional active line mask (if used) driven by CSS variables set from JS */
 .canvas-md-side-editor-panel .cmside-active-line-mask {

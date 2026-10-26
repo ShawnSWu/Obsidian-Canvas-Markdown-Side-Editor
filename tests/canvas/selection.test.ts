@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { getSelectedCanvasNodeId, tryCanvasAPIsForHit } from '../../../src/utils/canvas-selection';
-import type { CanvasLikeView } from '../../../src/types';
+import { getSelectedCanvasNodeId, tryCanvasAPIsForHit } from '../../src/canvas/hit-test';
+import type { CanvasLikeView } from '../../src/types';
 
 function makeView(canvas?: any): CanvasLikeView {
   return { containerEl: document.createElement('div'), canvas } as unknown as CanvasLikeView;
@@ -65,13 +65,15 @@ describe('tryCanvasAPIsForHit', () => {
     expect(await tryCanvasAPIsForHit(makeView(canvas), 0, 0)).toBe('arr-id');
   });
 
-  it('falls back to selection when every method returns nothing', async () => {
+  it('does not fall back to selection when every method returns nothing', async () => {
+    // Selection is not a hit test: on background clicks it can still hold
+    // the previously open card, which must not be treated as the click target.
     const canvas = {
       getNodeAtPos: () => null,
       getSelection: () => ['fallback-sel'],
     };
     const id = await tryCanvasAPIsForHit(makeView(canvas), 0, 0);
-    expect(id).toBe('fallback-sel');
+    expect(id).toBeNull();
   });
 
   it('returns null when nothing matches and selection is empty', async () => {

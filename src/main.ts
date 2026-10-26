@@ -1,92 +1,32 @@
-import { EditorView } from '@codemirror/view';
-import { Notice, Plugin, Scope, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
-import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS } from './settings';
-import { migrateLegacyReadOnly, nextViewMode, type ViewMode } from './view-mode';
-import type { CanvasNode, CanvasLikeView, CanvasLike } from './types';
-import { buildRenamePath, extractTitleFromText, patchFirstLineWithTitle } from './utils/card-title';
-import { CanvasMdSideEditorSettingTab } from './ui/setting-tab';
-import { findNodeIdAtPoint } from './utils/canvas';
-import { registerCommands } from './commands/register';
-import { createEditor } from './ui/editor';
-import { MarkdownLeafHost } from './ui/markdown-leaf';
-import { hitTestNodeAt as hitTestNodeAtUtil, getCanvasNodeById as getNodeByIdUtil } from './utils/canvas-data';
-import { getSelectedCanvasNodeId as getSelId, tryCanvasAPIsForHit as tryAPIsHit } from './utils/canvas-selection';
-import { PreviewHelper } from './ui/preview';
-import { attachPreviewLinkInterop } from './ui/preview-link-interop';
-import { PanelController } from './ui/panel';
-import { writeNodeContent as writeNodeContentUtil } from './utils/canvas-write';
-
 /*
  Canvas Markdown Side Editor
  - Detect clicks on Canvas Markdown (text) cards
- - Open a right-side CodeMirror editor styled like Obsidian
+ - Open a right-side editor styled like Obsidian
  - Save edits back to the Canvas file on background click or switching cards
+
+ This file is the plugin's lifecycle + wiring only. Feature logic lives in:
+   core/editor-session.ts    open/save/close state machine + panel lifecycle
+   canvas/interaction.ts     canvas DOM event routing + single-click detection
+   canvas/{geometry,data,hit-test}.ts   canvas geometry / data / node lookup
+   editor/*                  editor primitives (CM6 + Live Preview leaf host)
+   features/*                orthogonal features (card title, paste, headline)
+   ui/*                      panel, preview, settings tab
 */
+import { Plugin } from 'obsidian';
+import { CanvasMdSideEditorSettings, DEFAULT_SETTINGS, migrateLegacyFontSizes } from './settings';
+import { migrateLegacyReadOnly, type ViewMode } from './view-mode';
+import type { CanvasNode, CanvasLikeView } from './types';
+import { CanvasMdSideEditorSettingTab } from './ui/setting-tab';
+import { registerCommands } from './commands/register';
+import { EditorSession } from './core/editor-session';
+import { CanvasInteraction, getActiveCanvasView } from './canvas/interaction';
+import { applyHeadlineMode as applyHeadlineModeStyles, removeHeadlineMode } from './features/headline-mode';
 
-// types and settings imported from modules
-
-class CanvasMdSideEditorPlugin extends Plugin {
-  private panelEl: HTMLElement | null = null;
-  private editorRootEl: HTMLElement | null = null;
-  private cmView: EditorView | null = null;
-  private currentNodeId: string | null = null;
-  private currentCanvasFile: TFile | null = null;
-  private currentNode: CanvasNode | null = null;
-  private detachHandlers: Array<() => void> = [];
-  private pendingNodeId: string | null = null;
-  private previewRootEl: HTMLElement | null = null;
-  private currentSourcePath: string = '';
-  private cmScrollHandler: ((e: Event) => void) | null = null;
-  // UX helpers for editor focusing on blank clicks
-  private editorClickHandler: ((e: MouseEvent) => void) | null = null;
-  private editorClickAttachedEl: HTMLElement | null = null;
-  private containerElRef: HTMLElement | null = null;
-  private containerPosPatched: boolean = false;
-  private applyToolbarIcon: ((mode: ViewMode) => void) | null = null;
-  private previewHelper: PreviewHelper | null = null;
-  private panelController: PanelController | null = null;
-  // Live Preview host for file-type canvas nodes (issue #9). Lazily created
-  // on the first file-card open so plain text-card flows pay no overhead.
-  private mdLeafHost: MarkdownLeafHost | null = null;
-  // Tracks whether the currently open card is being rendered through the
-  // MarkdownLeafHost (file card) vs. the legacy CM6 editor (text card).
-  private usingLeafHost: boolean = false;
+export default class CanvasMdSideEditorPlugin extends Plugin {
   public settings!: CanvasMdSideEditorSettings;
 
-  // Last Canvas view we attached to. Used so that when the user navigates to a
-  // new Canvas (or the leaf rebuilds the view), we can save unsaved edits to
-  // the previous canvas before tearing down a now-stale panel. Fixes issue #8.
-  private lastCanvasView: CanvasLikeView | null = null;
-
-  // Obsidian Scope that overrides Mod+X while the side panel is open.
-  // Canvas's "cut selected node" hotkey runs at a level that the plain CM6
-  // keymap (even with stopPropagation) cannot reach — pushing this scope
-  // makes Obsidian's keymap dispatcher check our Mod+X binding first.
-  private sideEditorScope: Scope | null = null;
-
-  // Zoom-to-selection integration
-  private canvasPatchedRef: CanvasLike | null = null;
-  private originalZoomToSelection: ((...args: unknown[]) => unknown) | null = null;
-  private zoomingToSelection: boolean = false;
-
-  // Single-click detection state
-  private pointerDownTime: number = 0;
-  private pointerDownX: number = 0;
-  private pointerDownY: number = 0;
-  private pointerDragging: boolean = false;
-  private readonly MOVE_TOLERANCE_PX: number = 6; // distance threshold to treat as drag
-  private readonly LONG_PRESS_MS: number = 350;   // duration threshold to treat as long-press
-
-  // Monotonically-increasing generation counter for openEditorForNode.
-  // Concurrent rapid clicks (e.g. fast double-click on one card, then a
-  // click on another) can fire multiple openEditorForNode invocations
-  // that all suspend on `await vault.read(...)`. Reads can complete out
-  // of order, so an earlier-issued call's resume could clobber a
-  // later-issued call's render — including writing the wrong content to
-  // the wrong card on save (CM6 mode) or just showing the wrong preview
-  // (preview-only view mode). Each call captures its own myGen on entry and
-  // bails after every await if a newer call has bumped the counter.
-  private openGeneration: number = 0;
+  private session!: EditorSession;
+  private interaction!: CanvasInteraction;
 
   async onload() {
     // Load settings and register settings tab
@@ -98,12 +38,22 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
     // Issue #16 migration: collapse legacy `readOnly` boolean into
     // `viewMode` BEFORE merging with DEFAULT_SETTINGS, so the default
-    // `viewMode: 'both'` doesn't mask a legacy `readOnly: true` save.
+    // `viewMode: 'live'` doesn't mask a legacy `readOnly: true` save.
+    // Also retires the removed 'both' split mode to 'live', and folds the
+    // old font settings (editorFontSize / baseFontSize × panelFontScale)
+    // into the single `fontSize` px value.
     // Idempotent; running on already-migrated data is a no-op.
-    const hadReadOnly = 'readOnly' in raw;
+    const hadLegacy =
+      'readOnly' in raw
+      || raw.viewMode === 'both'
+      || 'editorFontSize' in raw
+      || 'previewFontSize' in raw
+      || 'baseFontSize' in raw
+      || 'panelFontScale' in raw;
     migrateLegacyReadOnly(raw);
+    migrateLegacyFontSizes(raw);
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw) as CanvasMdSideEditorSettings;
-    if (hadReadOnly) {
+    if (hadLegacy) {
       try { await this.saveData(this.settings); } catch {}
     }
 
@@ -111,22 +61,36 @@ class CanvasMdSideEditorPlugin extends Plugin {
 
     // Apply headline-mode body class on load so it covers any canvas that's
     // already open before our event listeners fire.
-    this.applyHeadlineMode();
+    applyHeadlineModeStyles(this.settings);
 
-    // Styles are now provided by styles.css bundled with the plugin
+    // Core state machine + canvas event routing
+    this.session = new EditorSession({
+      app: this.app,
+      plugin: this,
+      getSettings: () => this.settings,
+      persistSettings: (s) => this.saveData(s),
+    });
+    this.interaction = new CanvasInteraction(this.app, {
+      getPanelEl: () => this.session.panel,
+      getOpenNodeId: () => this.session.openNodeId,
+      save: (view) => this.session.save(view),
+      saveAndClose: (view) => this.session.saveAndClose(view),
+      openNode: (view, node) => this.session.open(view, node),
+    });
+
     // Track canvas changes
     const attach = async () => {
-      const view = this.getActiveCanvasView();
+      const view = getActiveCanvasView(this.app);
       if (view) {
         await this.attachToCanvas(view);
-      } else if (this.panelEl) {
+      } else if (this.session.panel) {
         // Left the Canvas: persist any unsaved edits to the previous canvas,
         // then drop panel state so a fresh one is built when we return.
-        const prev = this.lastCanvasView;
-        try { if (prev) await this.saveCurrentEdits(prev); } catch {}
-        this.detachFromCanvas();
-        this.teardownPanel();
-        this.lastCanvasView = null;
+        const prev = this.session.boundView;
+        try { if (prev) await this.session.save(prev); } catch {}
+        this.interaction.detach();
+        this.session.teardown();
+        this.session.boundView = null;
       }
     };
     // Initial attach if already on a Canvas
@@ -136,990 +100,94 @@ class CanvasMdSideEditorPlugin extends Plugin {
     registerCommands(this);
 
     // Re-attach on leaf/view changes
-    const ref1 = this.app.workspace.on('active-leaf-change', () => attach());
-    const ref2 = this.app.workspace.on('layout-change', () => attach());
+    const ref1 = this.app.workspace.on('active-leaf-change', () => { void attach(); });
+    const ref2 = this.app.workspace.on('layout-change', () => { void attach(); });
     this.registerEvent(ref1);
     this.registerEvent(ref2);
 
     // When the leaf-hosted editor changes, schedule a preview re-render so
     // the right-hand pane stays in sync. The 'editor-change' event fires
-    // for any markdown view in the workspace; we filter to the file we
-    // currently have embedded.
+    // for any markdown view in the workspace; the session filters to the
+    // file it currently has embedded.
     const refEdit = this.app.workspace.on('editor-change', (_editor, info) => {
-      if (!this.usingLeafHost) return;
-      const file = info && (info as { file?: { path?: string } }).file;
-      if (!file) return;
-      if (this.currentSourcePath && file.path === this.currentSourcePath) {
-        this.schedulePreviewRender();
-      }
+      this.session.handleWorkspaceEditorChange(info);
     });
     this.registerEvent(refEdit);
   }
 
-  // Save pasted images to vault and insert markdown links at cursor
-  private async handlePasteImages(files: File[], view: EditorView): Promise<void> {
-    try {
-      if (!files || files.length === 0) return;
-      const vault = this.app.vault;
-      const now = new Date();
-
-      const sourcePath = this.currentSourcePath || '';
-      const sourceDir = sourcePath.includes('/') ? sourcePath.substring(0, sourcePath.lastIndexOf('/')) : '';
-
-      const getCfg = (k: string) => {
-        try {
-          const v = (this.app as unknown as { vault: { getConfig?: (k: string) => unknown } }).vault;
-          return v.getConfig?.(k);
-        } catch { return undefined; }
-      };
-      const attachSetting = getCfg('attachmentFolderPath');
-      const useMdLinks = !!getCfg('useMarkdownLinks');
-
-      // Resolve preferred attachments folder
-      let folderPath = '';
-      if (typeof attachSetting === 'string' && attachSetting.trim()) {
-        const v = attachSetting.trim();
-        if (v.startsWith('./')) {
-          // relative to current file folder
-          const rel = v.slice(2);
-          folderPath = sourceDir ? (rel ? `${sourceDir}/${rel}` : sourceDir) : rel;
-        } else {
-          // vault-absolute folder
-          folderPath = v;
-        }
-      } else {
-        // default: same folder as current source, else vault root
-        folderPath = sourceDir || '';
-      }
-
-      // Ensure folder exists (if not root)
-      if (folderPath) {
-        const exists = this.app.vault.getAbstractFileByPath(folderPath);
-        if (!exists) {
-          try { await this.app.vault.createFolder(folderPath); } catch {}
-        }
-      }
-
-      // Helper to create a unique file path
-      const toTwo = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-      const ts = `${now.getFullYear()}${toTwo(now.getMonth()+1)}${toTwo(now.getDate())}_${toTwo(now.getHours())}${toTwo(now.getMinutes())}${toTwo(now.getSeconds())}`;
-
-      const savedPaths: string[] = [];
-      for (let idx = 0; idx < files.length; idx++) {
-        const f = files[idx];
-        const extFromType = (f.type && f.type.includes('/')) ? `.${f.type.split('/')[1]}` : '';
-        const baseName = `Pasted image ${ts}${files.length>1 ? ` ${idx+1}` : ''}${extFromType || '.png'}`;
-        let targetPath = folderPath ? `${folderPath}/${baseName}` : baseName;
-        // de-dup if exists
-        let attempt = 1;
-        while (this.app.vault.getAbstractFileByPath(targetPath)) {
-          const alt = `Pasted image ${ts}${files.length>1 ? ` ${idx+1}` : ''} (${++attempt})${extFromType || '.png'}`;
-          targetPath = folderPath ? `${folderPath}/${alt}` : alt;
-        }
-        const buf = await f.arrayBuffer();
-        await this.app.vault.createBinary(targetPath, buf);
-        savedPaths.push(targetPath);
-      }
-
-      // Insert links
-      const insertParts: string[] = [];
-      for (const p of savedPaths) {
-        if (useMdLinks) {
-          // Try to make relative if possible
-          let rel = p;
-          if (sourceDir && p.startsWith(sourceDir + '/')) rel = p.substring(sourceDir.length + 1);
-          insertParts.push(`![](${rel})`);
-        } else {
-          // wikilink
-          const fileName = p.includes('/') ? p.substring(p.lastIndexOf('/') + 1) : p;
-          insertParts.push(`![[${fileName}]]`);
-        }
-      }
-      const insertText = insertParts.join('\n');
-
-      const tr = view.state.update({ changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: insertText } });
-      view.dispatch(tr);
-      // schedule preview render with new content
-      this.schedulePreviewRender();
-    } catch (e) {
-      try { console.error('CanvasMdSideEditor: handlePasteImages failed', e); } catch {}
-    }
-  }
-
   onunload() {
-    try { document.body.classList.remove('cmside-headline-mode'); } catch {}
-    this.teardownPanel();
-    this.detachFromCanvas();
+    removeHeadlineMode();
+    this.session?.teardown();
+    this.interaction?.detach();
   }
 
-  private resolveVaultFile(path: string): TFile | null {
-    const file = this.app.vault.getAbstractFileByPath(path);
-    return file instanceof TFile ? file : null;
-  }
-
-  private getActiveCanvasView(): CanvasLikeView | null {
-    const leaf: WorkspaceLeaf | null = this.app.workspace.activeLeaf ?? null;
-    if (!leaf) return null;
-    const vUnknown = leaf.view as unknown;
-    const getType = (vUnknown as { getViewType?: () => string }).getViewType?.();
-    if (getType === 'canvas') {
-      const v = vUnknown as CanvasLikeView;
-      return v;
-    }
-    return null;
-  }
-
-  
-
+  // Attach the interaction layer to a canvas view. If the existing panel
+  // was attached to a destroyed/different container (e.g. user left and
+  // returned to a Canvas leaf that Obsidian rebuilt), save any pending
+  // edits to the previous canvas and drop the stale panel so the session
+  // can rebuild it under the new container. Fixes issue #8.
   private async attachToCanvas(view: CanvasLikeView) {
-    this.detachFromCanvas();
-    // If the existing panel was attached to a destroyed/different container
-    // (e.g. user left and returned to a Canvas leaf that Obsidian rebuilt),
-    // save any pending edits to the previous canvas and drop the stale panel
-    // so ensurePanel() can rebuild it under the new container. Fixes issue #8.
+    this.interaction.detach();
     const container: HTMLElement | undefined = view?.containerEl;
-    const stale = !!this.panelEl && (!this.panelEl.isConnected || (!!container && this.panelEl.parentElement !== container));
+    const panel = this.session.panel;
+    const stale = !!panel && (!panel.isConnected || (!!container && panel.parentElement !== container));
     if (stale) {
-      const prev = this.lastCanvasView;
+      const prev = this.session.boundView;
       if (prev && prev !== view) {
-        try { await this.saveCurrentEdits(prev); } catch {}
+        try { await this.session.save(prev); } catch {}
       }
-      this.teardownPanel();
+      this.session.teardown();
     }
-    this.lastCanvasView = view;
-    if (!container) return;
-    const contentEl: HTMLElement | undefined = view?.contentEl;
-    const innerEl: HTMLElement | null = container.querySelector(
-      '.canvas-container, .canvas-wrapper, .canvas-viewport'
-    );
-    const targets: HTMLElement[] = [container];
-    if (contentEl && contentEl !== container) targets.push(contentEl);
-    if (innerEl && !targets.includes(innerEl)) targets.push(innerEl);
-    const canvasEls = Array.from(container.querySelectorAll('canvas')) as HTMLElement[];
-    for (const c of canvasEls) {
-      if (!targets.includes(c)) targets.push(c);
-    }
-    try {
-      const canvasObj: CanvasLike | undefined = view?.canvas as CanvasLike | undefined;
-      if (canvasObj) {
-        // Patch zoomToSelection to close side editor and mark zooming state
-        try {
-          const z = canvasObj.zoomToSelection;
-          if (typeof z === 'function' && this.canvasPatchedRef !== canvasObj) {
-            this.originalZoomToSelection = z.bind(canvasObj);
-            const plugin = this;
-            canvasObj.zoomToSelection = async function(...args: unknown[]) {
-              try { plugin.zoomingToSelection = true; } catch {}
-              try {
-                if (plugin.panelEl) await plugin.saveAndClose(view);
-              } catch {}
-              try {
-                return await plugin.originalZoomToSelection?.(...args);
-              } finally {
-                try { setTimeout(() => { plugin.zoomingToSelection = false; }, 200); } catch {}
-              }
-            };
-            this.canvasPatchedRef = canvasObj;
-            // Ensure restore on detach
-            this.detachHandlers.push(() => {
-              try {
-                if (this.canvasPatchedRef === canvasObj && this.originalZoomToSelection) {
-                  canvasObj.zoomToSelection = this.originalZoomToSelection;
-                }
-              } catch {}
-              this.canvasPatchedRef = null;
-              this.originalZoomToSelection = null;
-              this.zoomingToSelection = false;
-            });
-          }
-        } catch {}
-      }
-    } catch {}
-
-    // Click handler removed in favor of precise single-click detection via pointer events
-
-    // Use capture on pointerdown to catch background clicks before Canvas swallows them
-    const onPointerDown = async (evt: PointerEvent) => {
-      const target = evt.target as HTMLElement | null;
-      if (!target) return;
-      // Ignore clicks inside the panel
-      if (this.panelEl && this.panelEl.contains(target)) return;
-      // record pointer down state for single-click detection
-      this.pointerDownTime = Date.now();
-      this.pointerDownX = (evt as PointerEvent).clientX;
-      this.pointerDownY = (evt as PointerEvent).clientY;
-      this.pointerDragging = false;
-      const cardEl = target.closest(
-        '.canvas-node, .canvas-card, [data-node-id], [data-id]'
-      ) as HTMLElement | null;
-      const domId = cardEl?.getAttribute('data-node-id') || cardEl?.getAttribute('data-id') || null;
-      const idByPoint = findNodeIdAtPoint((evt as PointerEvent).clientX, (evt as PointerEvent).clientY);
-      let hitId: string | null = null;
-      if (!domId && !idByPoint) {
-        hitId = await hitTestNodeAtUtil(this.app, view, (evt as PointerEvent).clientX, (evt as PointerEvent).clientY);
-      }
-      this.pendingNodeId = (domId ?? idByPoint ?? hitId) ?? null;
-      // Also re-check selection shortly after pointerdown
-      setTimeout(async () => {
-        const selId = await getSelId(view);
-        if (!this.pendingNodeId && selId) this.pendingNodeId = selId;
-      }, 30);
-      // Only save if panel is open
-      if (this.panelEl) {
-        // Clicking another card should also save current, but avoid saving if clicking the same card
-        if (this.pendingNodeId) {
-          if (this.currentNodeId && this.currentNodeId !== this.pendingNodeId) {
-            await this.saveCurrentEdits(view);
-          }
-        } else {
-          // Background pointerdown: pre-save edits
-          await this.saveCurrentEdits(view);
-        }
-      }
-      // Don't close here, allow click handler to reopen if it's a card
-    };
-
-    // Detect dragging by measuring movement beyond a tolerance
-    const onPointerMove = (evt: PointerEvent) => {
-      if (!this.pointerDownTime) return;
-      const dx = Math.abs(evt.clientX - this.pointerDownX);
-      const dy = Math.abs(evt.clientY - this.pointerDownY);
-      if (dx > this.MOVE_TOLERANCE_PX || dy > this.MOVE_TOLERANCE_PX) {
-        this.pointerDragging = true;
-      }
-    };
-
-    // Finalize on pointerup for better alignment with Canvas selection update timing
-    const onPointerUp = async (evt: PointerEvent) => {
-      if (!this.isOnCanvasView(view)) return;
-      const target = evt.target as HTMLElement | null;
-      if (!target) return;
-      if (this.panelEl && this.panelEl.contains(target)) return;
-      // Do not open editor while zoom-to-selection in progress
-      if (this.zoomingToSelection) {
-        this.pendingNodeId = null;
-        this.pointerDownTime = 0; this.pointerDragging = false;
-        return;
-      }
-
-      // qualify as a true single click only if primary button, short press, and no drag
-      const isPrimaryButton = evt.button === 0;
-      const dt = this.pointerDownTime ? (Date.now() - this.pointerDownTime) : 0;
-      const dx = Math.abs(evt.clientX - this.pointerDownX);
-      const dy = Math.abs(evt.clientY - this.pointerDownY);
-      const moved = dx > this.MOVE_TOLERANCE_PX || dy > this.MOVE_TOLERANCE_PX;
-      const isLongPress = dt >= this.LONG_PRESS_MS;
-
-      const qualifiesSingleClick = isPrimaryButton && !this.pointerDragging && !moved && !isLongPress;
-
-      if (qualifiesSingleClick) {
-        // Always resolve the clicked node id to avoid stale pendingNodeId
-        let clickId: string | null = findNodeIdAtPoint(evt.clientX, evt.clientY);
-        if (!clickId) clickId = await tryAPIsHit(view, evt.clientX, evt.clientY);
-        if (!clickId) clickId = await getSelId(view);
-        if (!clickId) clickId = this.pendingNodeId ?? null;
-
-        if (clickId) {
-          const node = await getNodeByIdUtil(this.app, view, clickId);
-          if (node) {
-            const isMd = node.type === 'text' || (node.type === 'file' && typeof node.file === 'string' && node.file.toLowerCase().endsWith('.md'));
-            if (isMd) {
-              if (this.panelEl && this.currentNodeId && this.currentNodeId !== clickId) {
-                await this.saveCurrentEdits(view);
-              }
-              await this.openEditorForNode(view, node);
-              this.pendingNodeId = null;
-              // reset pointer tracking and return
-              this.pointerDownTime = 0; this.pointerDragging = false;
-              return;
-            }
-          }
-        }
-        // Background case: if editor open, save & close
-        if (this.panelEl) await this.saveAndClose(view);
-      }
-      // clear states on non-qualifying interactions without acting
-      this.pendingNodeId = null;
-      this.pointerDownTime = 0; this.pointerDragging = false;
-    };
-
-    // Suppress Canvas default double-click zoom when our panel is active
-    const onDblClick = (evt: MouseEvent) => {
-      try {
-        if (!this.isOnCanvasView(view)) return;
-        const target = evt.target as HTMLElement | null;
-        if (!target) return;
-        // Allow dblclicks inside panel (e.g., selecting text within editor/preview)
-        if (this.panelEl && this.panelEl.contains(target)) return;
-        // Only suppress when our editor panel is open/active
-        const panelOpen = !!this.panelEl && this.panelEl.classList.contains('open');
-        if (!panelOpen) return;
-        // Only act on primary-button double clicks
-        if (evt.button !== 0) return;
-        // Prevent Canvas from handling zoom-to-selection or opening native editor
-        evt.preventDefault();
-        evt.stopImmediatePropagation();
-        evt.stopPropagation();
-      } catch {}
-    };
-
-    // Close side panel immediately when Canvas' own inline editor gets focus or typing begins
-    const onFocusIn = async (evt: FocusEvent) => {
-      try {
-        const target = evt.target as HTMLElement | null;
-        if (!target) return;
-        // Ignore focus inside our side panel
-        if (this.panelEl && this.panelEl.contains(target)) return;
-        if (this.isCanvasInlineEditTarget(target)) {
-          if (this.panelEl) await this.saveAndClose(view);
-        }
-      } catch {}
-    };
-
-    const onKeyDown = async (evt: KeyboardEvent) => {
-      try {
-        // In case focusin didn't fire for some reason, detect typing within Canvas inline editor
-        const target = evt.target as HTMLElement | null;
-        if (!target) return;
-        if (this.panelEl && this.panelEl.contains(target)) return;
-        if (this.isCanvasInlineEditTarget(target)) {
-          if (this.panelEl) await this.saveAndClose(view);
-        }
-      } catch {}
-    };
-
-    // Use bubbling phase for click so Canvas can update selection first
-    for (const t of targets) {
-      // click listener removed to avoid false triggers from long-press/drag
-      this.registerDomEvent(t, 'pointerdown', onPointerDown, { capture: true } as AddEventListenerOptions);
-      this.registerDomEvent(t, 'pointermove', onPointerMove);
-      this.registerDomEvent(t, 'pointerup', onPointerUp);
-      this.registerDomEvent(t, 'dblclick', onDblClick, { capture: true } as AddEventListenerOptions);
-      this.registerDomEvent(t, 'focusin', onFocusIn, { capture: true } as AddEventListenerOptions);
-      this.registerDomEvent(t, 'keydown', onKeyDown, { capture: true } as AddEventListenerOptions);
-    }
+    this.session.boundView = view;
+    this.interaction.attach(view);
   }
 
-  private detachFromCanvas() {
-    while (this.detachHandlers.length) {
-      const off = this.detachHandlers.pop();
-      try { off && off(); } catch {}
-    }
-    // Safety: if we were patched and not restored, restore now
-    try {
-      const view = this.getActiveCanvasView();
-      const canvasObj: CanvasLike | undefined = view?.canvas as CanvasLike | undefined;
-      if (canvasObj && this.canvasPatchedRef === canvasObj && this.originalZoomToSelection) {
-        canvasObj.zoomToSelection = this.originalZoomToSelection;
-      }
-    } catch {}
-    this.canvasPatchedRef = null;
-    this.originalZoomToSelection = null;
-    this.zoomingToSelection = false;
+  // ---------------------------------------------------------------------
+  // Internal delegation shims. Kept as runtime members because the
+  // integration tests drive the plugin through them (via `as any`).
+  // ---------------------------------------------------------------------
+
+  private async openEditorForNode(view: CanvasLikeView, node: CanvasNode): Promise<void> {
+    return this.session.open(view, node);
   }
 
-  private isOnCanvasView(view: unknown): boolean {
-    const getType = (view as { getViewType?: () => string })?.getViewType?.();
-    return getType === 'canvas';
+  private get panelEl(): HTMLElement | null {
+    return this.session?.panel ?? null;
   }
 
-  private isCanvasInlineEditTarget(el: HTMLElement | null): boolean {
-    try {
-      if (!el) return false;
-      // Exclude our side panel
-      if (this.panelEl && this.panelEl.contains(el)) return false;
-      // Must be within a Canvas card element
-      const card = el.closest('.canvas-node, .canvas-card, [data-node-id], [data-id]') as HTMLElement | null;
-      if (!card) return false;
-      // Typical editable areas inside Canvas cards
-      if (el.closest('[contenteditable="true"], textarea, input[type="text"], .cm-editor')) return true;
-      // Some themes/plugins toggle editing classes on the card
-      const cls = (card.className || '').toLowerCase();
-      if (cls.includes('editing') || cls.includes('is-editing')) return true;
-      return false;
-    } catch {
-      return false;
-    }
+  private get previewRootEl(): HTMLElement | null {
+    return this.session?.previewRoot ?? null;
   }
 
-  
-
-  // viewport/transform/coords helpers moved to utils/canvas
-
-  
-
-  // findNodeIdAtPoint moved to utils/canvas
-
-  
-
-  
-
-  private ensurePanel(view: any) {
-    if (this.panelEl) return;
-    const container: HTMLElement = view.containerEl;
-    // Ensure container is positioned so the absolute panel anchors correctly
-    try {
-      const pos = getComputedStyle(container).position;
-      if (!pos || pos === 'static') {
-        container.classList.add('cmside-container-patched');
-        this.containerPosPatched = true;
-      } else {
-        this.containerPosPatched = false;
-      }
-      this.containerElRef = container;
-    } catch {}
-    // Build panel via PanelController and short-circuit old implementation
-    if (!this.panelController) {
-      this.panelController = new PanelController(
-        container,
-        () => this.settings,
-        (s) => this.saveData(s),
-      );
-      const refs = this.panelController.create();
-      this.panelEl = refs.panelEl;
-      this.editorRootEl = refs.editorRootEl;
-      this.previewRootEl = refs.previewRootEl;
-      if (!this.previewHelper) this.previewHelper = new PreviewHelper(this.app, this);
-      this.previewHelper.setContainer(this.previewRootEl!);
-      attachPreviewLinkInterop({
-        app: this.app,
-        plugin: this,
-        container: this.previewRootEl!,
-        getSourcePath: () => this.currentSourcePath,
-      });
-
-      // Toolbar icon + tooltip per current viewMode (issue #16, #20).
-      // Cycle order: editor → live → both → preview → editor.
-      const ICONS: Record<ViewMode, string> = {
-        editor: 'pencil',
-        live: 'square-pen',
-        both: 'panel-left',
-        preview: 'book-open',
-      };
-      const TOOLTIPS: Record<ViewMode, string> = {
-        editor: 'View: Editor only — click for Live Preview',
-        live: 'View: Live Preview — click for Both',
-        both: 'View: Both — click for Preview',
-        preview: 'View: Preview only — click for Editor',
-      };
-      const applyIcon = (mode: ViewMode) => {
-        setIcon(refs.toggleBtn, ICONS[mode]);
-        refs.toggleBtn.setAttribute('aria-label', TOOLTIPS[mode]);
-        refs.toggleBtn.setAttribute('title', TOOLTIPS[mode]);
-      };
-      applyIcon(this.settings.viewMode);
-
-      this.panelController.onToggle(() => { this.cycleViewMode(); });
-      this.panelController.onClose(() => { try { this.saveAndClose(view); } catch {} });
-      this.applyToolbarIcon = applyIcon; // expose for setViewMode to repaint
-      this.installSideEditorScope();
-      return;
-    }
+  private get cmView() {
+    return this.session?.cmView ?? null;
   }
 
-  // Push a scope onto Obsidian's keymap that overrides Mod+X. The callback
-  // only acts when focus is inside our CM6 editor — otherwise it returns
-  // true so Canvas's own "cut selected node" hotkey can run unchanged.
-  private installSideEditorScope(): void {
-    if (this.sideEditorScope) return;
-    const scope = new Scope(this.app.scope);
-    scope.register(['Mod'], 'x', () => {
-      const cm = this.cmView;
-      const ae = document.activeElement;
-      if (!cm || !ae || !cm.contentDOM.contains(ae)) return true;
-      const sel = cm.state.selection.main;
-      let from = sel.from;
-      let to = sel.to;
-      if (sel.empty) {
-        const line = cm.state.doc.lineAt(sel.from);
-        from = line.from;
-        to = line.to === cm.state.doc.length ? line.to : line.to + 1;
-      }
-      if (from === to) return false;
-      const text = cm.state.sliceDoc(from, to);
-      try { void navigator.clipboard.writeText(text); } catch {}
-      cm.dispatch({
-        changes: { from, to, insert: '' },
-        selection: { anchor: from },
-        userEvent: 'delete.cut',
-      });
-      return false;
-    });
-    this.app.keymap.pushScope(scope);
-    this.sideEditorScope = scope;
-  }
+  // ---------------------------------------------------------------------
+  // Public API used by commands and the settings tab
+  // ---------------------------------------------------------------------
 
-  private uninstallSideEditorScope(): void {
-    if (!this.sideEditorScope) return;
-    try { this.app.keymap.popScope(this.sideEditorScope); } catch {}
-    this.sideEditorScope = null;
-  }
-
-  // Cycle Editor → Both → Preview → Editor (issue #16).
   public cycleViewMode(): void {
-    void this.setViewMode(nextViewMode(this.settings.viewMode));
+    this.session.cycleViewMode();
   }
 
-  // Apply a specific view mode: persist + push to panel + repaint toolbar icon.
-  // Used by the cycle button, the settings dropdown, and command callbacks.
   public async setViewMode(mode: ViewMode): Promise<void> {
-    const prevMode = this.settings.viewMode;
-    this.settings.viewMode = mode;
-    try { await this.saveData(this.settings); } catch {}
-    try { this.panelController?.setViewMode?.(mode); } catch {}
-    try { this.applyToolbarIcon?.(mode); } catch {}
-
-    // Transitions that change the active editor primitive — CM6 ↔
-    // detached MarkdownLeaf (Live Preview) — need a full re-open so the
-    // right primitive ends up mounted in editorRootEl. We detect both
-    // directions by checking what's currently displayed vs. what the new
-    // mode wants. The CM6-only cycles (editor/both/preview) are handled
-    // by the cheap rebuild below.
-    if (this.currentNode && this.lastCanvasView) {
-      const isLeavingLive = prevMode === 'live' && this.usingLeafHost;
-      const isEnteringLive =
-        mode === 'live'
-        && this.currentNode.type === 'file'
-        && typeof this.currentNode.file === 'string'
-        && this.resolveVaultFile(this.currentNode.file) != null;
-      if (isLeavingLive || isEnteringLive) {
-        // Flush the leaf's in-memory buffer first if we're tearing it
-        // down — otherwise typed-but-unsaved content disappears on
-        // detach and the next read sees stale disk data.
-        if (isLeavingLive) {
-          try { await this.mdLeafHost?.save(); } catch {}
-        }
-        await this.openEditorForNode(this.lastCanvasView, this.currentNode);
-        return;
-      }
-    }
-
-    // Rebuild cmView when leaving preview if the dispose path in
-    // openEditorForNode (or simply opening a card while already in preview)
-    // left it null. Without this, the editor pane becomes visible-but-blank.
-    // Note: 'live' mode reaches here only when the leaf path was skipped
-    // (text card, or unresolvable file) — in that case we still need a
-    // CM6 fallback so the pane isn't empty.
-    if (mode !== 'preview' && !this.cmView && this.currentNode && this.editorRootEl) {
-      try { await this.rebuildCmViewForCurrentNode(); } catch {}
-    }
+    await this.session.setViewMode(mode);
   }
 
-  // Re-create cmView with the latest content of the currently-open node.
-  // Mirrors the source-of-truth resolution in openEditorForNode: text cards
-  // read from node.text, file cards re-read from disk.
-  private async rebuildCmViewForCurrentNode(): Promise<void> {
-    const node = this.currentNode;
-    if (!node) return;
-    let initial = '';
-    if (node.type === 'text') {
-      initial = node.text ?? '';
-    } else if (node.type === 'file' && typeof node.file === 'string') {
-      const f = this.resolveVaultFile(node.file);
-      if (f) initial = await this.app.vault.read(f);
-    }
-    await this.openCmEditor(initial);
+  public applyFontSizes(): void {
+    this.session.applyFontSizes();
   }
 
-  private async openEditorForNode(view: any, node: CanvasNode) {
-    // Stake out a unique generation for this invocation. Concurrent
-    // rapid clicks bump the counter; if our gen is no longer current
-    // after any await, we must bail before applying side effects.
-    const myGen = ++this.openGeneration;
-
-    // Safety net: drop any orphaned panel reference before (re)building.
-    if (this.panelEl && !this.panelEl.isConnected) {
-      this.teardownPanel();
-    }
-    this.ensurePanel(view);
-    if (!this.panelEl || !this.editorRootEl) return;
-    this.currentNodeId = node.id;
-    this.currentNode = node;
-    const file: TFile | undefined = view?.file;
-    this.currentCanvasFile = file ?? null;
-    this.currentSourcePath =
-      node.type === 'file' && typeof node.file === 'string'
-        ? node.file
-        : this.currentCanvasFile?.path ?? '';
-    this.previewHelper?.setSourcePath(this.currentSourcePath);
-
-    // Load content (only used by the legacy CM6 editor path; the
-    // MarkdownLeafHost reads directly from the file).
-    let initial = '';
-    if (node.type === 'text') {
-      initial = node.text ?? '';
-    } else if (node.type === 'file' && typeof node.file === 'string') {
-      const mdFile = this.resolveVaultFile(node.file);
-      if (mdFile) {
-        initial = await this.app.vault.read(mdFile);
-        if (this.openGeneration !== myGen) return;
-      }
-    }
-
-    // Live Preview leaf hijack (issue #9 / #20). The cold-start race that
-    // previously blocked this is resolved by MarkdownLeafHost calling
-    // leaf.loadIfDeferred() to promote a DeferredView placeholder. The
-    // leaf path is only used when:
-    //   - viewMode is 'live'
-    //   - the node is a file card with a resolvable .md TFile
-    // Text cards or unresolved files transparently fall back to the
-    // CM6 editor for this session without persisting the fallback.
-    const liveTarget =
-      this.settings.viewMode === 'live'
-      && node.type === 'file'
-      && typeof node.file === 'string'
-        ? this.resolveVaultFile(node.file)
-        : null;
-
-    if (liveTarget && this.editorRootEl) {
-      // Burn down any leftover CM6 before mounting the leaf into the same
-      // root element. Otherwise the leaf's reparent into editorRootEl
-      // would race with CM6 DOM still attached.
-      if (this.cmView) this.disposeCmView();
-      if (!this.mdLeafHost) this.mdLeafHost = new MarkdownLeafHost(this.app);
-      const liveView = await this.mdLeafHost.open(liveTarget, this.editorRootEl);
-      if (this.openGeneration !== myGen) return;
-      if (liveView) {
-        this.usingLeafHost = true;
-      } else {
-        // Couldn't construct a leaf on this Obsidian build — quiet
-        // per-session fallback to CM6 source mode. Don't persist this;
-        // the next card / next session may succeed.
-        try { await this.mdLeafHost.detach(); } catch {}
-        if (this.openGeneration !== myGen) return;
-        this.usingLeafHost = false;
-        await this.openCmEditor(initial);
-        if (this.openGeneration !== myGen) return;
-      }
-    } else {
-      if (this.mdLeafHost) {
-        await this.mdLeafHost.detach();
-        if (this.openGeneration !== myGen) return;
-      }
-      this.usingLeafHost = false;
-      if (this.settings.viewMode !== 'preview') {
-        await this.openCmEditor(initial);
-        if (this.openGeneration !== myGen) return;
-      } else if (this.cmView) {
-        // Burn down any cmView left over from a prior editor-or-both view-mode session.
-        // Otherwise the next saveCurrentEdits would dump the previous card's
-        // editor content back into whatever node is currently selected — for
-        // file cards that means overwriting the linked .md file with the
-        // wrong text, which then surfaces as the bug where clicking card 2
-        // shows card 1's content (the file got rewritten on the way in).
-        this.disposeCmView();
-      }
-    }
-
-    // Initial preview render. For file cards, read fresh content so the
-    // preview matches what the leaf is now showing.
-    let initialForPreview = initial;
-    if (this.usingLeafHost) {
-      initialForPreview = this.mdLeafHost?.getValue() ?? initial;
-    }
-    // Belt: don't even kick off the markdown render if we're already
-    // stale. Suspenders: PreviewHelper.renderText is single-flight so
-    // even if we do enqueue a stale text, it will be replaced by a
-    // newer one before MarkdownRenderer ever sees it.
-    if (this.openGeneration !== myGen) return;
-    await this.renderPreview(initialForPreview);
-    if (this.openGeneration !== myGen) return;
-
-    // Render the toolbar title (static or editable depending on settings).
-    this.applyCardTitle(view, node, initialForPreview);
-
-    // Slide in
-    this.panelEl.classList.add('open');
-    // Re-render shortly after opening to account for layout/transition
-    // timing. We deliberately use initialForPreview rather than reading
-    // from this.cmView here: in preview-only view mode openCmEditor is skipped,
-    // so cmView retains content from whatever card was last opened in
-    // editor or both view mode. Reading from it at +80ms would clobber the
-    // correct preview we just rendered with that stale content. If the
-    // user is editing in editor or both view mode, schedulePreviewRender's debounced
-    // path will reflect those edits independently of this nudge.
-    setTimeout(() => {
-      if (this.openGeneration !== myGen) return;
-      this.renderPreview(initialForPreview);
-    }, 80);
-    // Focus editor for immediate typing (skip in preview-only view mode)
-    if (this.settings.viewMode !== 'preview') {
-      try {
-        if (this.usingLeafHost) {
-          this.mdLeafHost?.getView()?.editor?.focus();
-        } else {
-          this.cmView?.focus();
-        }
-      } catch {}
-    }
-  }
-
-  // Build (or update) the legacy CM6 editor with the given content. Used by
-  // text cards and as a fallback when the live-preview leaf can't be
-  // constructed on this Obsidian build.
-  private async openCmEditor(initial: string): Promise<void> {
-    if (!this.editorRootEl) return;
-    if (this.cmView) {
-      const tr = this.cmView.state.update({
-        changes: { from: 0, to: this.cmView.state.doc.length, insert: initial },
-      });
-      this.cmView.dispatch(tr);
-    } else {
-      this.cmView = createEditor(
-        this.editorRootEl,
-        initial,
-        () => this.schedulePreviewRender(),
-        (files, view) => { this.handlePasteImages(files, view).catch(() => {}); },
-      );
-      this.editorRootEl.classList.add('markdown-source-view', 'cm-s-obsidian', 'mod-cm6');
-      this.cmScrollHandler = () => { this.syncPreviewScroll(); };
-      const v = this.cmView as EditorView;
-      v.scrollDOM.addEventListener('scroll', this.cmScrollHandler, { passive: true });
-    }
-    this.setupEditorBlankClickHandler();
-  }
-
-  private disposeCmView(): void {
-    if (this.cmView && this.cmScrollHandler) {
-      try { (this.cmView as EditorView).scrollDOM.removeEventListener('scroll', this.cmScrollHandler); } catch {}
-    }
-    if (this.cmView) {
-      try { this.cmView.destroy(); } catch {}
-      this.cmView = null;
-    }
-    this.cmScrollHandler = null;
-  }
-
-  private async saveCurrentEdits(view: any) {
-    if (!this.currentNodeId) return;
-    // File cards routed through the live-preview leaf write directly to
-    // the bound .md file. We never dump anything into the canvas JSON for
-    // them since file cards only reference the file by path. But the
-    // leaf's own save is debounced ~2s — force a flush here so the
-    // close-panel / switch-canvas paths don't lose typed-but-unsaved
-    // content if the user just stopped typing.
-    if (this.usingLeafHost) {
-      try { await this.mdLeafHost?.save(); } catch {}
-      return;
-    }
-    if (!this.cmView) return;
-    const newText = this.cmView.state.doc.toString();
-    await writeNodeContentUtil(this.app, view, this.currentNode, this.currentNodeId, newText);
-  }
-
-  private async saveAndClose(view: any) {
-    await this.saveCurrentEdits(view);
-    this.closePanel();
-  }
-
-  private closePanel() {
-    if (this.panelEl) this.panelEl.classList.remove('open');
-    this.currentNodeId = null;
-  }
-
-  public applyFontSizes() {
-    try { this.panelController?.applyFontSizes?.(); } catch {}
-  }
-
-  // Apply the persisted dock position to the open panel (issue #11).
   public applyDockPosition(): void {
-    try {
-      const pos = this.settings.dockPosition ?? 'right';
-      this.panelController?.setDockPosition?.(pos);
-    } catch {}
+    this.session.applyDockPosition();
   }
 
-  // Toggle the body-level class that drives the headline-mode CSS (issue #13)
-  // and publish the user-tunable Title/Subtitle sizes as CSS variables. Pure
-  // CSS does the rest, so we don't need to touch any canvas DOM ourselves.
-  public applyHeadlineMode(): void {
-    try {
-      const on = !!this.settings.headlineMode;
-      document.body.classList.toggle('cmside-headline-mode', on);
-      const h1 = clampHeadlineSize(this.settings.headlineH1Size, 22, 5, 60);
-      document.body.style.setProperty('--cmside-h1-size', String(h1));
-    } catch {}
-  }
-
-  // Re-render the toolbar title using the currently open node. Called by the
-  // settings tab when the user toggles "Show editable card title".
   public refreshCardTitle(): void {
-    if (!this.panelController || !this.currentNode || !this.lastCanvasView) return;
-    const initial = this.usingLeafHost
-      ? (this.mdLeafHost?.getValue() ?? '')
-      : (this.cmView?.state.doc.toString() ?? '');
-    this.applyCardTitle(this.lastCanvasView, this.currentNode, initial);
+    this.session.refreshCardTitle();
   }
 
-  private applyCardTitle(view: CanvasLikeView, node: CanvasNode, currentContent: string): void {
-    if (!this.panelController) return;
-    if (node.type === 'file' && typeof node.file === 'string') {
-      const file = this.resolveVaultFile(node.file);
-      const basename = file?.basename ?? '';
-      this.panelController.setTitle(basename, (newName) => {
-        if (file) void this.commitFileRename(file, newName, node);
-      });
-      return;
-    }
-    if (node.type === 'text') {
-      const initialTitle = extractTitleFromText(currentContent);
-      this.panelController.setTitle(initialTitle, (newTitle) => {
-        void this.commitTextTitle(view, newTitle);
-      });
-      return;
-    }
-    this.panelController.setTitle('Canvas MD Side Editor');
+  public applyHeadlineMode(): void {
+    applyHeadlineModeStyles(this.settings);
   }
-
-  private async commitFileRename(file: TFile, newBasename: string, node: CanvasNode): Promise<void> {
-    const plan = buildRenamePath(file.path, newBasename);
-    if (!plan.valid) {
-      new Notice(`Cannot rename: ${plan.reason}`);
-      this.refreshCardTitle();
-      return;
-    }
-    if (plan.path === file.path) return;
-    if (this.app.vault.getAbstractFileByPath(plan.path)) {
-      new Notice('A file with that name already exists');
-      this.refreshCardTitle();
-      return;
-    }
-    try {
-      await this.app.vault.rename(file, plan.path);
-      // Keep our in-memory references in sync so subsequent saves go to the
-      // new path rather than the now-defunct one.
-      if (typeof node.file === 'string') node.file = plan.path;
-      this.currentSourcePath = plan.path;
-      this.previewHelper?.setSourcePath(plan.path);
-    } catch {
-      new Notice('Rename failed');
-      this.refreshCardTitle();
-    }
-  }
-
-  private async commitTextTitle(view: CanvasLikeView, newTitle: string): Promise<void> {
-    if (!this.cmView) return;
-    const doc = this.cmView.state.doc.toString();
-    const patched = patchFirstLineWithTitle(doc, newTitle);
-    if (patched === doc) return;
-    this.cmView.dispatch({ changes: { from: 0, to: doc.length, insert: patched } });
-    await this.saveCurrentEdits(view);
-  }
-
-  private teardownPanel() {
-    this.uninstallSideEditorScope();
-    // Prefer controller cleanup if present
-    if (this.panelController) {
-      try { this.panelController.destroy(); } catch {}
-      this.panelController = null;
-    }
-    // Drop the toolbar icon callback so it doesn't retain a detached <button>.
-    this.applyToolbarIcon = null;
-    // Drop the embedded live-preview leaf (if any) before nuking the panel.
-    if (this.mdLeafHost) {
-      try { void this.mdLeafHost.detach(); } catch {}
-      this.mdLeafHost = null;
-    }
-    this.usingLeafHost = false;
-    if (this.cmView && this.cmScrollHandler) {
-      try { (this.cmView as EditorView).scrollDOM.removeEventListener('scroll', this.cmScrollHandler); } catch {}
-    }
-    if (this.cmView) {
-      this.cmView.destroy();
-      this.cmView = null;
-    }
-    this.cmScrollHandler = null;
-    // Detach editor blank-click handler if attached
-    try {
-      if (this.editorClickAttachedEl && this.editorClickHandler) {
-        this.editorClickAttachedEl.removeEventListener('mousedown', this.editorClickHandler);
-      }
-    } catch {}
-    this.editorClickAttachedEl = null;
-    this.editorClickHandler = null;
-    if (this.panelEl) {
-      this.panelEl.remove();
-      this.panelEl = null;
-    }
-    // Restore container position class if we patched it
-    if (this.containerElRef && this.containerPosPatched) {
-      try { this.containerElRef.classList.remove('cmside-container-patched'); } catch {}
-    }
-    this.containerElRef = null;
-    this.containerPosPatched = false;
-    this.editorRootEl = null;
-    this.previewRootEl = null;
-    this.currentNodeId = null;
-    this.currentCanvasFile = null;
-    this.currentNode = null;
-  }
-
-  
-
-  private schedulePreviewRender() {
-    const debounce = this.settings?.previewDebounceMs ?? 50;
-    if (this.usingLeafHost && this.mdLeafHost) {
-      const host = this.mdLeafHost;
-      this.previewHelper?.scheduleFromText(() => host.getValue() ?? '', debounce);
-      return;
-    }
-    if (!this.cmView) return;
-    this.previewHelper?.scheduleFromEditor(this.cmView, debounce);
-  }
-
-  private async renderPreview(text: string) {
-    if (!this.previewHelper) return;
-    await this.previewHelper.renderText(text);
-    this.syncPreviewScroll();
-  }
-
-  private syncPreviewScroll() {
-    if (!this.cmView) return;
-    this.previewHelper?.syncScrollFromEditor(this.cmView);
-  }
-
-  private setupEditorBlankClickHandler() {
-    if (!this.editorRootEl || !this.cmView || this.settings.viewMode === 'preview') return;
-    const root = this.editorRootEl;
-    // If handler already attached to another element, detach first
-    if (this.editorClickAttachedEl && this.editorClickAttachedEl !== root && this.editorClickHandler) {
-      try { this.editorClickAttachedEl.removeEventListener('mousedown', this.editorClickHandler); } catch {}
-    }
-    // Define handler if not exists
-    if (!this.editorClickHandler) {
-      this.editorClickHandler = (evt: MouseEvent) => {
-        try {
-          if (!this.cmView) return;
-          if (evt.button !== 0) return; // left click only
-          const t = evt.target as HTMLElement | null;
-          // Let CodeMirror handle clicks within content/lines normally
-          if (t && (t.closest('.cm-content') || t.closest('.cm-line'))) return;
-          const pos = (this.cmView as EditorView).posAtCoords({ x: evt.clientX, y: evt.clientY });
-          const at = (pos == null) ? (this.cmView as EditorView).state.doc.length : pos;
-          (this.cmView as EditorView).dispatch({ selection: { anchor: at } });
-          (this.cmView as EditorView).focus();
-          evt.preventDefault();
-          evt.stopPropagation();
-        } catch {}
-      };
-    }
-    // Attach to current root if not already
-    if (this.editorClickAttachedEl !== root) {
-      root.addEventListener('mousedown', this.editorClickHandler!);
-      this.editorClickAttachedEl = root;
-    }
-  }
-
-  
-
 }
-
-// Coerce a possibly-invalid stored size into a number inside [min, max],
-// falling back to `fallback` for non-finite or missing values.
-function clampHeadlineSize(value: unknown, fallback: number, min: number, max: number): number {
-  const n = typeof value === 'number' ? value : Number(value);
-  if (!isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, n));
-}
-
-export default CanvasMdSideEditorPlugin;

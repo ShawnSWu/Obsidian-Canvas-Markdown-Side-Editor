@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { App, TFile } from 'obsidian';
-import { writeNodeContent } from '../../../src/utils/canvas-write';
-import type { CanvasLikeView, CanvasNode } from '../../../src/types';
+import { writeNodeContent } from '../../src/canvas/data';
+import type { CanvasLikeView, CanvasNode } from '../../src/types';
 
 function makeView(opts: { canvas?: any; file?: TFile } = {}): CanvasLikeView {
   return { containerEl: document.createElement('div'), canvas: opts.canvas, file: opts.file } as unknown as CanvasLikeView;

@@ -98,7 +98,6 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
       .addDropdown((dd) => {
         dd.addOption('editor', 'Editor');
         dd.addOption('live', 'Live Preview');
-        dd.addOption('both', 'Both');
         dd.addOption('preview', 'Preview');
         dd.setValue(this.plugin.settings.viewMode);
         dd.onChange(async (val) => {
@@ -154,16 +153,16 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
     containerEl.createEl('h3', { text: 'Typography' });
 
     new Setting(containerEl)
-      .setName('Editor font size (px)')
-      .setDesc('Set the font size for the side editor. Initially uses your theme’s current size when the panel first opens.')
+      .setName('Font size (px)')
+      .setDesc('Font size for the side panel. Both the editor and preview share it; the toolbar slider adjusts this same value. Initially uses your theme’s size when the panel first opens.')
       .addText((tb) => {
         tb.inputEl.type = 'number';
         tb.inputEl.min = '8';
-        tb.setValue(String(this.plugin.settings.editorFontSize ?? 16));
+        tb.setValue(String(this.plugin.settings.fontSize ?? 16));
         tb.onChange(async (v) => {
           const n = Number(v);
           if (isFinite(n) && n >= 8) {
-            this.plugin.settings.editorFontSize = Math.round(n);
+            this.plugin.settings.fontSize = Math.round(n);
             await this.plugin.saveData(this.plugin.settings);
             this.plugin.applyFontSizes?.();
           }
@@ -171,20 +170,17 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('Preview font size (px)')
-      .setDesc('Set the font size for the preview pane. Initially uses your theme’s current size when the panel first opens.')
-      .addText((tb) => {
-        tb.inputEl.type = 'number';
-        tb.inputEl.min = '8';
-        tb.setValue(String(this.plugin.settings.previewFontSize ?? 16));
-        tb.onChange(async (v) => {
-          const n = Number(v);
-          if (isFinite(n) && n >= 8) {
-            this.plugin.settings.previewFontSize = Math.round(n);
+      .setName('Table font scale')
+      .setDesc('Rendered table font size as a percentage of the panel font. Applies to tables in Preview and Live Preview.')
+      .addSlider((sl) => {
+        sl.setLimits(50, 100, 5)
+          .setValue(Math.round((this.plugin.settings.tableFontScale ?? 0.75) * 100))
+          .setDynamicTooltip()
+          .onChange(async (v) => {
+            this.plugin.settings.tableFontScale = v / 100;
             await this.plugin.saveData(this.plugin.settings);
             this.plugin.applyFontSizes?.();
-          }
-        });
+          });
       });
   }
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { keymap } from '@codemirror/view';
 import { undo } from '@codemirror/commands';
-import { createEditor } from '../../src/ui/editor';
+import { createEditor } from '../../src/editor/cm6-editor';
 
 beforeEach(() => {
   document.body.innerHTML = '';

@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { App, TFile } from 'obsidian';
-import { readCanvasData, getCanvasNodeById, hitTestNodeAt } from '../../../src/utils/canvas-data';
-import type { CanvasLikeView } from '../../../src/types';
+import { readCanvasData, getCanvasNodeById } from '../../src/canvas/data';
+import { hitTestNodeAt } from '../../src/canvas/hit-test';
+import type { CanvasLikeView } from '../../src/types';
 
 const originalGCS = window.getComputedStyle.bind(window);
 window.getComputedStyle = ((el: Element) => {

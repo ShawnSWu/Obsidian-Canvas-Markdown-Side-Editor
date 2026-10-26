@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { App, MarkdownRenderer } from 'obsidian';
 import { PreviewHelper } from '../../src/ui/preview';
-import { createEditor } from '../../src/ui/editor';
+import { createEditor } from '../../src/editor/cm6-editor';
 
 beforeEach(() => {
   document.body.innerHTML = '';

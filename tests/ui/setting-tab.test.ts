@@ -29,8 +29,8 @@ function setup(overrides: Partial<CanvasMdSideEditorSettings> = {}) {
 //   viewMode (select #1)            ← issue #16, replaces readOnly toggle
 //   headlineMode (input #3, checkbox)
 //   headlineH1Size (input #4)
-//   editorFontSize (input #5)
-//   previewFontSize (input #6)
+//   fontSize (input #5)
+//   tableFontScale (input #6, range slider)
 
 function nthInput(container: HTMLElement, index: number): HTMLInputElement {
   return container.querySelectorAll('input')[index] as HTMLInputElement;
@@ -51,7 +51,7 @@ const flushAsync = () => new Promise<void>((r) => setTimeout(r, 0));
 describe('CanvasMdSideEditorSettingTab.display', () => {
   it('renders the expected control set', () => {
     const { tab } = setup();
-    // 5 number inputs + 2 checkboxes = 7 <input> elements (readOnly was input #3, now a <select>)
+    // 5 number inputs + 1 checkbox + 1 range slider = 7 <input> elements
     expect(tab.containerEl.querySelectorAll('input').length).toBe(7);
     // 2 dropdowns: dockPosition + viewMode
     expect(tab.containerEl.querySelectorAll('select').length).toBe(2);
@@ -144,7 +144,7 @@ describe('Preview debounce input', () => {
 
 describe('Default view mode dropdown (issue #16)', () => {
   it('persists the selected mode and calls setViewMode', async () => {
-    const { tab, plugin, settings } = setup({ viewMode: 'both' });
+    const { tab, plugin, settings } = setup({ viewMode: 'live' });
     const selects = tab.containerEl.querySelectorAll('select');
     // Index 0 is dockPosition, index 1 is viewMode.
     const viewModeSelect = selects[1] as HTMLSelectElement;
@@ -159,6 +159,13 @@ describe('Default view mode dropdown (issue #16)', () => {
     const { tab } = setup({ viewMode: 'editor' });
     const selects = tab.containerEl.querySelectorAll('select');
     expect((selects[1] as HTMLSelectElement).value).toBe('editor');
+  });
+
+  it('only offers the three supported modes', () => {
+    const { tab } = setup({ viewMode: 'live' });
+    const selects = tab.containerEl.querySelectorAll('select');
+    const values = Array.from((selects[1] as HTMLSelectElement).options).map((o) => o.value);
+    expect(values).toEqual(['editor', 'live', 'preview']);
   });
 });
 
@@ -250,30 +257,41 @@ describe('Headline title size input (issue #13)', () => {
 });
 
 describe('Font size inputs', () => {
-  it('persists editor font size and re-applies', async () => {
-    const { tab, plugin, settings } = setup({ editorFontSize: 16 });
+  it('persists font size and re-applies', async () => {
+    const { tab, plugin, settings } = setup({ fontSize: 16 });
     const input = nthInput(tab.containerEl, 5);
     fire(input, '14');
-    expect(settings.editorFontSize).toBe(14);
-    await flushAsync();
-    expect(plugin.applyFontSizes).toHaveBeenCalled();
-  });
-
-  it('persists preview font size and re-applies', async () => {
-    const { tab, plugin, settings } = setup({ previewFontSize: 16 });
-    const input = nthInput(tab.containerEl, 6);
-    fire(input, '18');
-    expect(settings.previewFontSize).toBe(18);
+    expect(settings.fontSize).toBe(14);
     await flushAsync();
     expect(plugin.applyFontSizes).toHaveBeenCalled();
   });
 
   it('rejects font sizes below 8 px', async () => {
-    const { tab, plugin, settings } = setup({ editorFontSize: 16 });
+    const { tab, plugin, settings } = setup({ fontSize: 16 });
     const input = nthInput(tab.containerEl, 5);
     fire(input, '4');
-    expect(settings.editorFontSize).toBe(16);
+    expect(settings.fontSize).toBe(16);
     await flushAsync();
     expect(plugin.applyFontSizes).not.toHaveBeenCalled();
+  });
+});
+
+describe('Table font scale slider', () => {
+  it('persists the scale as a fraction and re-applies', async () => {
+    const { tab, plugin, settings } = setup({ tableFontScale: 0.75 });
+    const input = nthInput(tab.containerEl, 6);
+    expect(input.type).toBe('range');
+    input.value = '50';
+    input.dispatchEvent(new Event('change'));
+    await flushAsync();
+    expect(settings.tableFontScale).toBe(0.5);
+    expect(plugin.saveData).toHaveBeenCalled();
+    expect(plugin.applyFontSizes).toHaveBeenCalled();
+  });
+
+  it('initializes from the current setting', () => {
+    const { tab } = setup({ tableFontScale: 0.9 });
+    const input = nthInput(tab.containerEl, 6);
+    expect(input.value).toBe('90');
   });
 });
