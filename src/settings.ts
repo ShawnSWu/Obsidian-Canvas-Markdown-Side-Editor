@@ -21,14 +21,18 @@ export interface CanvasMdSideEditorSettings {
   floatingWidth?: number;
   floatingHeight?: number;
   // Vault-wide "headline mode" toggle (issue #13). When true, every text /
-  // file canvas card visually collapses to just its first H1; full content
+  // file canvas card shows its first H1 and first Note callout; full content
   // remains accessible through the side editor.
   headlineMode?: boolean;
   // Title size in headline mode, scaling with the card's shorter side
   // (multiplier on CSS `cqmin`, so both card axes are respected). Bigger
-  // number → bigger text. Clamped to a sane min/max in CSS so very small /
-  // very large cards still look reasonable.
+  // number → bigger text. Clamped to a sane min/max so very small / very
+  // large cards still look reasonable. Badge, category and subtitle use the
+  // same scale: equal values render at equal size.
   headlineH1Size?: number;
+  headlineBadgeSize?: number;
+  headlineCategorySize?: number;
+  headlineSubtitleSize?: number;
 }
 
 // One-time migration of retired font settings into the single `fontSize`
@@ -63,5 +67,17 @@ export const DEFAULT_SETTINGS: CanvasMdSideEditorSettings = {
   floatingWidth: 480,
   floatingHeight: 400,
   headlineMode: false,
-  headlineH1Size: 22,
+  headlineH1Size: 25,
+  headlineBadgeSize: 16,
+  headlineCategorySize: 18,
+  headlineSubtitleSize: 11,
 };
+
+// Each comfortable default is the midpoint of its slider, so a fresh install
+// and a reset both sit in the middle of the track.
+export const HEADLINE_SIZE_LIMITS = {
+  headlineH1Size: { min: 5, max: 45 },
+  headlineBadgeSize: { min: 2, max: 30 },
+  headlineCategorySize: { min: 3, max: 33 },
+  headlineSubtitleSize: { min: 1, max: 21 },
+} as const;

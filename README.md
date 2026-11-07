@@ -18,12 +18,25 @@ Obsidian Canvas is great for visual thinking, but editing Markdown cards directl
 > *Write Markdown with the comfort of a full editor, while keeping the big picture in sight.*
 
 ## Recommended Setting for Large Canvases
+The first H1 is always used as the headline. Headline mode uses only the first `[!note]` after that H1 and before the next H1. In the Note title, text before the first `|` becomes the optional badge, and text after it becomes the category (for example, `P01 | System Check` displays `P01` as the badge and `System Check` as the category). Without a `|`, the full title is shown as the category with no badge. The Note body becomes the subtitle. Other callouts and headings remain part of the Markdown but are not shown on the headline card.
 
-If you often zoom all the way out on the Canvas like I do, I'd recommend turning on "Headline mode" and setting the "Zoom threshold for hiding card content" to the maximum value.
-It provides the best overall viewing experience and makes it much easier to navigate large canvases.
+<img width="890" height="663" alt="image" src="https://github.com/user-attachments/assets/62c85f9f-3942-43b5-924a-3f8d8517472d" />
 
-<img width="610" height="99" alt="image" src="https://github.com/user-attachments/assets/18bd667c-a066-4313-85ee-c86a50b58349" />
 <img width="894" height="247" alt="image" src="https://github.com/user-attachments/assets/ee7b96c2-2740-4d55-b884-038892f872f0" />
+
+````markdown
+# Connection and Service Checks
+
+> [!note] P01 | System Check
+> Verify that the database, API services, and related dependencies are operating normally.
+> Confirm that all required services are running.
+
+## Additional Details
+
+This content remains in the note, but is hidden on the headline card.
+````
+<img width="1500" height="1000" alt="image" src="https://github.com/user-attachments/assets/d6cb124f-ee1a-4243-ae2c-aad16fe0cfe7" />
+
 
 ---
 

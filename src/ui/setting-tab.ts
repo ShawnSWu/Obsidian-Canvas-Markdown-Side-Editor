@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
-import type { CanvasMdSideEditorSettings } from '../settings';
+import { DEFAULT_SETTINGS, HEADLINE_SIZE_LIMITS, type CanvasMdSideEditorSettings } from '../settings';
 import type { ViewMode } from '../view-mode';
 
 // Minimal plugin surface used by this settings tab
@@ -106,49 +106,51 @@ export class CanvasMdSideEditorSettingTab extends PluginSettingTab {
         });
       });
 
-    // The "title size" input is only meaningful when headline mode is on, so
-    // we grey it out and disable interaction whenever the toggle is off.
-    let titleSizeInput: HTMLInputElement | null = null;
-    let titleSizeSettingEl: HTMLElement | null = null;
-    const syncTitleSizeEnabled = (enabled: boolean) => {
-      if (titleSizeInput) titleSizeInput.disabled = !enabled;
-      if (titleSizeSettingEl) titleSizeSettingEl.classList.toggle('cmside-setting-disabled', !enabled);
+    // Headline sizing is only meaningful when headline mode is on, so these
+    // controls are disabled until the toggle is enabled. Each text tier has
+    // its own slider on the same scale: equal values render at equal size.
+    const headlineSliderEls: HTMLElement[] = [];
+    const headlineSettingEls: HTMLElement[] = [];
+    const syncHeadlineSizesEnabled = (enabled: boolean) => {
+      for (const el of headlineSliderEls) (el as HTMLInputElement).disabled = !enabled;
+      for (const el of headlineSettingEls) el.classList.toggle('cmside-setting-disabled', !enabled);
+    };
+    type HeadlineSizeKey = 'headlineH1Size' | 'headlineBadgeSize' | 'headlineCategorySize' | 'headlineSubtitleSize';
+    const addHeadlineSizeSlider = (name: string, desc: string, key: HeadlineSizeKey) => {
+      const fallback = DEFAULT_SETTINGS[key] ?? HEADLINE_SIZE_LIMITS[key].min;
+      const { min, max } = HEADLINE_SIZE_LIMITS[key];
+      const setting = new Setting(containerEl).setName(name).setDesc(desc).addSlider((sl) => {
+        sl.setLimits(min, max, 1)
+          .setValue(Math.round(this.plugin.settings[key] ?? fallback))
+          .setDynamicTooltip()
+          .onChange(async (v) => {
+            this.plugin.settings[key] = Math.max(min, Math.min(max, Math.round(v)));
+            await this.plugin.saveData(this.plugin.settings);
+            this.plugin.applyHeadlineMode?.();
+          });
+        headlineSliderEls.push(sl.sliderEl);
+      });
+      headlineSettingEls.push(setting.settingEl);
     };
 
     new Setting(containerEl)
       .setName('Headline mode')
-      .setDesc('Show only the first H1 (Title) on every Canvas card; full content stays accessible through the side editor. Turn off here to restore normal cards.')
+      .setDesc('Render every Canvas card as a compact dashboard card: the first H1 becomes the main headline, and the first [!note] callout below it provides an optional "ID | Category" metadata row and the subtitle. Full content stays accessible through inline editing or the side editor. Turn off here to restore normal cards.')
       .addToggle((tg) => {
         tg.setValue(!!this.plugin.settings.headlineMode);
         tg.onChange(async (val) => {
           this.plugin.settings.headlineMode = !!val;
           await this.plugin.saveData(this.plugin.settings);
           this.plugin.applyHeadlineMode?.();
-          syncTitleSizeEnabled(!!val);
+          syncHeadlineSizesEnabled(!!val);
         });
       });
 
-    const titleSizeSetting = new Setting(containerEl)
-      .setName('Headline title size')
-      .setDesc('Size of the headline title in headline mode, as a percentage of the card\'s shorter side. Bigger value → bigger text. Range 5–60.')
-      .addText((tb) => {
-        tb.inputEl.type = 'number';
-        tb.inputEl.min = '5';
-        tb.inputEl.max = '60';
-        tb.setValue(String(this.plugin.settings.headlineH1Size ?? 22));
-        tb.onChange(async (v) => {
-          const n = Number(v);
-          if (isFinite(n) && n >= 5 && n <= 60) {
-            this.plugin.settings.headlineH1Size = Math.round(n);
-            await this.plugin.saveData(this.plugin.settings);
-            this.plugin.applyHeadlineMode?.();
-          }
-        });
-        titleSizeInput = tb.inputEl;
-      });
-    titleSizeSettingEl = titleSizeSetting.settingEl;
-    // Apply the initial enabled/disabled state based on the persisted toggle.
-    syncTitleSizeEnabled(!!this.plugin.settings.headlineMode);
+    addHeadlineSizeSlider('Headline title size', 'Size of the main headline (the first H1), relative to the card\'s shorter side. Default 25 is the middle of the range.', 'headlineH1Size');
+    addHeadlineSizeSlider('Headline badge size', 'Size of the identifier badge (e.g. P01) on the same scale as the headline. Default 16 is the middle of the range.', 'headlineBadgeSize');
+    addHeadlineSizeSlider('Headline category size', 'Size of the category label next to the badge, on the same scale as the headline. Default 18 is the middle of the range.', 'headlineCategorySize');
+    addHeadlineSizeSlider('Headline subtitle size', 'Size of the subtitle (the [!note] callout body), on the same scale as the headline. Default 11 is the middle of the range.', 'headlineSubtitleSize');
+    syncHeadlineSizesEnabled(!!this.plugin.settings.headlineMode);
 
     containerEl.createEl('h3', { text: 'Typography' });
 

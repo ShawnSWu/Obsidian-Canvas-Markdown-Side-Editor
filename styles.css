@@ -148,204 +148,228 @@ If your plugin does not need CSS, delete this file.
   background: var(--background-modifier-hover);
 }
 
-/* Headline mode (issue #13): when enabled in settings, every canvas card
-   hides its rendered body content and shows only the first H1 (Title) + H2
-   (Subtitle). Full content stays accessible through the side editor.
-   Toggling the body class is the only thing the plugin does at runtime —
-   the rest is pure CSS.
-
-   We hide block-level content tags directly (instead of hiding non-h1/h2
-   children of a wrapper) because Obsidian renders headings nested inside
-   `.markdown-preview-sizer`, so a `> *:not(h1):not(h2)` rule would hide
-   the wrapper and take h1/h2 with it.
-
-   Issue #21: the hide is scoped to `.markdown-preview-view`/`.markdown-rendered`
-   — i.e. the *rendered body of a text/markdown card*. A standalone image
-   card is a Canvas file-node whose content element is itself
-   `.canvas-node-content.media-embed.image-embed` with NO markdown preview
-   inside, so none of these rules can match it and the image always shows.
-   Conversely an inline image in a text card (`![[img.png]]`) lives as a
-   descendant of `.markdown-preview-view`, so it IS collapsed away with the
-   rest of the body, leaving only the headline. */
-body.cmside-headline-mode .canvas-node :is(.markdown-preview-view, .markdown-rendered) :is(
-  p, ul, ol, dl,
-  blockquote, pre, code,
-  hr, table, figure,
-  img, picture, video, iframe, embed, object, audio,
-  h3, h4, h5, h6,
-  .callout, .image-embed, .media-embed, .file-embed,
-  .internal-embed, .markdown-embed-link, .external-link, .footnotes
-) {
-  display: none !important;
-}
-/* Only the first H1 in the card counts as the title — drop any subsequent
-   H1s so multi-H1 cards still produce a clean single-headline look.
-   Same for the first H2, which serves as the subtitle. */
-body.cmside-headline-mode .canvas-node h1 ~ h1,
-body.cmside-headline-mode .canvas-node h2 ~ h2 {
+/* Headline mode: Markdown-driven dashboard card.
+   Row 1: optional identifier badge + category (parsed from the Note title).
+   Row 2: the first H1 as the main headline with a blue accent bar.
+   Row 3: the Note body as a muted multiline subtitle (callout chrome removed).
+   The feature marks the selected blocks and all their descendants with
+   `cmside-headline-keep` and their ancestors with `cmside-headline-path`;
+   everything else inside the card is hidden. Selector lists stay on one
+   line and `:not()` takes a single class, because some CSS engines parse
+   multi-line selector lists and complex `:not()` arguments unreliably.
+   Every rule excludes inline editing, so the full content and the theme's
+   own callout layout stay intact while editing. */
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-root :not(.cmside-headline-keep):not(.cmside-headline-path) {
   display: none !important;
 }
 
-/* Hide the duplicate filename Obsidian renders *inside* the card body —
-   the canvas already shows the filename as a label outside the card
-   (`.canvas-node-label`), so the in-card copy reads as redundant text.
-   `.mod-header.mod-ui` is the wrapper Obsidian inserts before the body
-   content; it carries the editable `.inline-title` (filename) and the
-   `.metadata-container` (Properties), neither of which belong in
-   headline view. We deliberately do NOT hide `.canvas-node-label`
-   itself, so the canvas's built-in filename label stays visible. */
-body.cmside-headline-mode .canvas-node .mod-header,
-body.cmside-headline-mode .canvas-node .inline-title,
-body.cmside-headline-mode .canvas-node .metadata-container,
-body.cmside-headline-mode .canvas-node .markdown-embed-title,
-body.cmside-headline-mode .canvas-node .file-embed-title,
-body.cmside-headline-mode .canvas-node .embed-title,
-body.cmside-headline-mode .canvas-node .markdown-embed-link {
+/* Hide duplicate in-card filenames/properties, not the Canvas node label or
+   the headers of embeds inside the selected Note (its descendants carry
+   `cmside-headline-keep`). */
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .mod-header:not(.cmside-headline-keep), body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .inline-title:not(.cmside-headline-keep), body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .metadata-container:not(.cmside-headline-keep), body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .markdown-embed-title:not(.cmside-headline-keep), body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .file-embed-title:not(.cmside-headline-keep), body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .embed-title:not(.cmside-headline-keep), body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .markdown-embed-link:not(.cmside-headline-keep) {
   display: none !important;
 }
 
-/* Establish the card node itself as a size container so the headline can be
-   sized in container units. A canvas node's width/height always come from the
-   explicit px values stored in the .canvas file — never from its content — so
-   `size` containment cannot collapse it. The inner preview/embed wrappers are
-   NOT safe anchors: parts of the canvas DOM size them shrink-to-fit, and
-   inline-size containment there collapses their width to ~0, which made 1cqi
-   resolve to ~0 and pinned the title at its clamp floor (tiny text that never
-   tracked the card). Anchoring on the node also supersedes the issue #21
-   workaround — image cards no longer need to be excluded because the
-   container never sits on `.canvas-node-content`.
-
-   Two axes are available (cqi + cqh, so cqmin = the shorter side), and since
-   canvas zoom is a transform on an ancestor, the text tracks zoom visually.
-   Excluded while editing so Obsidian can still measure/auto-grow the node. */
+/* The node has explicit Canvas dimensions, making it a safe size container.
+   The shorter side controls title size even when Canvas zoom transforms it. */
 body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) {
   container-type: size;
 }
 
-/* Centre the (now title-only) content vertically + horizontally inside
-   the card. Multiple selector layers cover the variations in canvas DOM. */
-body.cmside-headline-mode .canvas-node .markdown-preview-view,
-body.cmside-headline-mode .canvas-node .markdown-preview-sizer,
-body.cmside-headline-mode .canvas-node .markdown-rendered,
-body.cmside-headline-mode .canvas-node .markdown-embed-content {
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-root, body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-path.markdown-preview-sizer {
   display: flex !important;
   flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
+  align-items: flex-start !important;
+  justify-content: safe center !important;
+  gap: clamp(6px, 1.6cqmin, 16px) !important;
   height: 100% !important;
+  width: 100% !important;
   min-height: 0 !important;
-  padding: 2% 3% !important;
+  padding: 0 !important;
   box-sizing: border-box !important;
-  text-align: center !important;
+  text-align: left !important;
+  overflow: hidden !important;
 }
 
-/* Title: scale with the card's SHORTER side (cqmin) so it fills the card on
-   both axes — tall cards are limited by width, flat cards by height. The user
-   setting (default 22, range 5–60) is the master scale: 22 × 0.7 ≈ 15cqmin,
-   a poster-like fill. Scoped to non-editing nodes so inline edit shows the
-   theme's normal headings (and because the size container only exists there,
-   cqmin would otherwise fall back to viewport units). */
-body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) h1 {
-  font-size: clamp(18px, calc(var(--cmside-h1-size, 22) * 0.7cqmin), 420px) !important;
-  font-weight: 700 !important;
-  text-align: center !important;
-  margin: 0 !important;
+/* Dashboard card surface: dark charcoal/slate in dark themes via Obsidian's
+   own variables, a light panel in light themes. Padding lives only on this
+   outer layer (the inner sizer stays at 0) so it never applies twice. */
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .canvas-node-content {
   padding: 0 !important;
+}
+
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-root {
+  position: relative;
+  padding: clamp(8px, 1.4cqmin, 14px) 4.5% !important;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-l, 12px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* Metadata row: blue rounded identifier badge + muted blue-gray category.
+   Badge and category sizes are independent settings on the headline scale
+   (value × 0.6cqmin of the card's shorter side). */
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-hl-meta {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap;
+  font-size: calc(var(--cmside-badge-size, 16) * 0.6cqmin);
+  gap: 1.15em;
+  min-height: 0;
+  max-width: 100%;
+  line-height: 1.25;
+}
+
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-hl-badge {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-radius: 999px;
+  padding: 0.12em 0.65em;
+  font-size: calc(var(--cmside-badge-size, 16) * 0.6cqmin) !important;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-hl-category {
+  color: var(--text-muted);
+  font-size: calc(var(--cmside-category-size, 18) * 0.6cqmin) !important;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* Flatten per-block rendering sections, but not the selected Note itself
+   (it is never marked as a path) or any part of its content. */
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-path:not(.markdown-preview-sizer) {
+  display: contents !important;
+}
+
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-title {
+  position: relative !important;
+  font-size: calc(var(--cmside-h1-size, 25) * 0.6cqmin) !important;
+  font-weight: 700 !important;
+  text-align: left !important;
+  margin: 0 !important;
+  padding: 0 0 0 0.55em !important;
   border: none !important;
-  line-height: 1.15 !important;
+  line-height: 1.25 !important;
   color: var(--text-normal) !important;
   word-break: break-word !important;
-  text-wrap: balance !important;
   max-width: 100% !important;
+  min-height: 0 !important;
+  flex-shrink: 1;
   display: -webkit-box !important;
   -webkit-line-clamp: 6 !important;
   -webkit-box-orient: vertical !important;
   overflow: hidden !important;
 }
 
-/* Subtitle: the card's first H2 (later H2s are hidden above). ~55% of the
-   title size, muted, capped at two lines. */
-body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) h2 {
-  font-size: clamp(13px, calc(var(--cmside-h1-size, 22) * 0.38cqmin), 200px) !important;
-  font-weight: 600 !important;
-  text-align: center !important;
-  margin: 0.35em 0 0 !important;
-  padding: 0 !important;
-  border: none !important;
-  line-height: 1.25 !important;
-  color: var(--text-muted) !important;
-  word-break: break-word !important;
-  text-wrap: balance !important;
-  max-width: 100% !important;
-  display: -webkit-box !important;
-  -webkit-line-clamp: 2 !important;
-  -webkit-box-orient: vertical !important;
-  overflow: hidden !important;
+/* Short vertical blue accent bar immediately to the left of the headline. */
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.1em;
+  bottom: 0.1em;
+  width: max(3px, 0.08em);
+  border-radius: 3px;
+  background: var(--interactive-accent);
 }
 
-/* Below Obsidian's canvas zoom breakpoint (zoom ≤ ~2^-1.7 ≈ 31% by default),
-   Obsidian UNMOUNTS the card's rendered markdown and swaps in a plain-text
-   `.canvas-node-placeholder` (the filename at a flat 32px) as a performance
-   measure. Style it like the headline so deep zoom-out doesn't visually break
-   headline mode — the size container on `.canvas-node` stays in place
-   regardless of mount state, so cqmin keeps working. */
+/* Reserve space for the subtitle even when the headline is unusually long.
+   Title (40) + note (40) + meta row + gaps stay within the card height. */
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-has-note .cmside-headline-title {
+  max-height: 40cqh;
+}
+
+/* The selected Note becomes the subtitle: the callout chrome (title, icon,
+   background, border) is removed and its body renders as muted gray text.
+   Font size is an independent setting on the headline scale.
+   Nested callouts inside the body keep the theme's native UI. */
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-note {
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  max-height: min(40cqh, 24rem);
+  flex-shrink: 1;
+  overflow: hidden;
+  box-sizing: border-box;
+  margin: clamp(4px, 1cqmin, 12px) 0 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  text-align: left;
+  font-size: calc(var(--cmside-subtitle-size, 11) * 0.6cqmin) !important;
+  line-height: 1.5;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  position: relative;
+  --callout-padding: 0;
+  --cmside-subtitle-lines: 99;
+}
+
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-note > .callout-title {
+  display: none !important;
+}
+
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-note .callout-content {
+  padding: 0;
+  margin: 0;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--cmside-subtitle-lines, 99);
+  overflow: hidden;
+}
+
+/* Join note paragraphs into one subtitle so the ellipsis lands in the text
+   instead of after a block. Nested callouts keep their own layout. */
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-note .callout-content > p {
+  display: inline;
+  margin: 0;
+}
+
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-note .callout-content > p + p::before {
+  content: " ";
+}
+
+/* Fallback ellipsis when line-clamp cannot run, or when the card frame — not
+   the note box — is what cuts the text. Sizes stay at the slider values. */
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-note.cmside-headline-subtitle-clipped::after, body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-root.cmside-headline-subtitle-clipped::after {
+  content: "…";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  padding-left: 1.4em;
+  line-height: inherit;
+  color: var(--text-muted);
+  background: linear-gradient(to right, transparent, var(--background-secondary) 0.55em);
+  pointer-events: none;
+}
+
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-note * {
+  font-size: inherit !important;
+}
+
+/* Obsidian replaces rendered Markdown with a filename at deep zoom-out. */
 body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .canvas-node-placeholder {
-  font-size: clamp(18px, calc(var(--cmside-h1-size, 22) * 0.7cqmin), 420px) !important;
+  font-size: calc(var(--cmside-h1-size, 25) * 0.6cqmin) !important;
   font-weight: 700 !important;
-  line-height: 1.15 !important;
+  line-height: 1.25 !important;
   color: var(--text-normal) !important;
   padding: 2% 3% !important;
   text-wrap: balance !important;
 }
 
-/* When a card has no H1, headline mode would render an empty card. Show
-   a faint placeholder so the user can tell the card is intentionally
-   blank in this view (and that they need to add an H1 to give it a
-   title). Uses CSS `:has()`, supported by Obsidian's Electron runtime. */
-body.cmside-headline-mode .canvas-node .markdown-preview-sizer:not(:has(h1))::before {
+body.cmside-headline-mode .canvas-node:not(.is-editing):not(.editing) .cmside-headline-empty::before {
   content: "No headline";
   color: var(--text-faint);
   font-style: italic;
-  font-size: clamp(12px, calc(var(--cmside-h1-size, 22) * 0.3cqmin), 80px);
-  text-align: center;
+  font-size: clamp(12px, calc(var(--cmside-h1-size, 25) * 0.3cqmin), 80px);
   opacity: 0.7;
-}
-
-/* Don't enforce headline view while the card is in inline-edit mode so the
-   user can still see / edit the full markdown if they double-click. */
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) :is(
-  p, ul, ol, dl,
-  blockquote, pre, code,
-  hr, table, figure,
-  img, picture, video, iframe, embed, object, audio,
-  h2, h3, h4, h5, h6,
-  .callout, .image-embed, .file-embed, .markdown-embed-link,
-  .internal-embed, .external-link, .footnotes
-),
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) h1 ~ h1,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) h2 ~ h2 {
-  display: revert !important;
-}
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .mod-header,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .inline-title,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .metadata-container,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-title,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .file-embed-title,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .embed-title,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-link {
-  display: revert !important;
-}
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-sizer::before {
-  content: none !important;
-}
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-view,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-preview-sizer,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-rendered,
-body.cmside-headline-mode .canvas-node:is(.is-editing, .editing) .markdown-embed-content {
-  display: revert !important;
-  height: revert !important;
-  padding: revert !important;
-  text-align: revert !important;
 }
 
 /* Image cards always fill their frame (issue #21 follow-up). Obsidian's

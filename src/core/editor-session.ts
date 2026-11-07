@@ -40,6 +40,8 @@ const MODE_TOOLTIPS: Record<ViewMode, string> = {
   live: 'View: Live Preview — click for Preview',
   preview: 'View: Preview only — click for Editor',
 };
+const TEXT_CARD_LIVE_NOTICE =
+  'Obsidian’s native Live Preview editor is available only for Markdown file cards. Text cards use the basic editor instead.';
 
 export interface EditorSessionDeps {
   app: App;
@@ -457,6 +459,12 @@ export class EditorSession {
     // CM6 fallback so the pane isn't empty.
     if (mode !== 'preview' && !this.cm6Host.view && this.currentNode && this.editorRootEl) {
       try { await this.rebuildCmViewForCurrentNode(); } catch {}
+    }
+    if (mode === 'live' && prevMode !== 'live'
+      && this.getSettings().viewMode === 'live'
+      && this.currentNodeId && this.currentNode?.type === 'text'
+      && this.panelEl?.classList.contains('open')) {
+      new Notice(TEXT_CARD_LIVE_NOTICE);
     }
   }
 

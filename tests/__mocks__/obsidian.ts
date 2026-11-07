@@ -219,12 +219,14 @@ export class Setting {
     inputEl.type = 'range';
     const sl = {
       inputEl,
+      sliderEl: inputEl,
       setLimits: (min: number, max: number, step: number) => {
         inputEl.min = String(min);
         inputEl.max = String(max);
         inputEl.step = String(step);
         return sl;
       },
+      setDisabled: (disabled: boolean) => { inputEl.disabled = disabled; return sl; },
       setValue: (v: number) => { inputEl.value = String(v); return sl; },
       setDynamicTooltip: () => sl,
       onChange: (handler: (v: number) => void) => {

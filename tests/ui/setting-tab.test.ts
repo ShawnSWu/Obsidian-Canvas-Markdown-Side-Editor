@@ -28,9 +28,12 @@ function setup(overrides: Partial<CanvasMdSideEditorSettings> = {}) {
 //   previewDebounceMs (input #2)
 //   viewMode (select #1)            ← issue #16, replaces readOnly toggle
 //   headlineMode (input #3, checkbox)
-//   headlineH1Size (input #4)
-//   fontSize (input #5)
-//   tableFontScale (input #6, range slider)
+//   headlineH1Size (input #4, range slider)
+//   headlineBadgeSize (input #5, range slider)
+//   headlineCategorySize (input #6, range slider)
+//   headlineSubtitleSize (input #7, range slider)
+//   fontSize (input #8)
+//   tableFontScale (input #9, range slider)
 
 function nthInput(container: HTMLElement, index: number): HTMLInputElement {
   return container.querySelectorAll('input')[index] as HTMLInputElement;
@@ -51,8 +54,8 @@ const flushAsync = () => new Promise<void>((r) => setTimeout(r, 0));
 describe('CanvasMdSideEditorSettingTab.display', () => {
   it('renders the expected control set', () => {
     const { tab } = setup();
-    // 5 number inputs + 1 checkbox + 1 range slider = 7 <input> elements
-    expect(tab.containerEl.querySelectorAll('input').length).toBe(7);
+    // 4 number inputs + 1 checkbox + 5 range sliders = 10 <input> elements
+    expect(tab.containerEl.querySelectorAll('input').length).toBe(10);
     // 2 dropdowns: dockPosition + viewMode
     expect(tab.containerEl.querySelectorAll('select').length).toBe(2);
   });
@@ -191,7 +194,7 @@ describe('Headline mode toggle (issue #13)', () => {
   });
 });
 
-describe('Headline title size input (issue #13)', () => {
+describe('Headline size sliders (issue #13)', () => {
   function setupWithApply(overrides: Partial<CanvasMdSideEditorSettings> = {}) {
     const settings: CanvasMdSideEditorSettings = { ...DEFAULT_SETTINGS, ...overrides };
     const plugin = {
@@ -207,59 +210,76 @@ describe('Headline title size input (issue #13)', () => {
     return { tab, plugin, settings };
   }
 
-  it('persists title size and re-applies headline mode', async () => {
-    const { tab, plugin, settings } = setupWithApply({ headlineMode: true, headlineH1Size: 22 });
-    const input = nthInput(tab.containerEl, 4);
-    fire(input, '30');
+  // The mock slider persists on 'change' (mirroring Obsidian's SliderComponent).
+  const slide = (input: HTMLInputElement, value: string) => {
+    input.value = value;
+    input.dispatchEvent(new Event('change'));
+  };
+
+  it('persists each tier size independently and re-applies headline mode', async () => {
+    const { tab, plugin, settings } = setupWithApply({ headlineMode: true });
+    slide(nthInput(tab.containerEl, 4), '30');
     expect(settings.headlineH1Size).toBe(30);
+    slide(nthInput(tab.containerEl, 5), '28');
+    expect(settings.headlineBadgeSize).toBe(28);
+    slide(nthInput(tab.containerEl, 6), '14');
+    expect(settings.headlineCategorySize).toBe(14);
+    slide(nthInput(tab.containerEl, 7), '20');
+    expect(settings.headlineSubtitleSize).toBe(20);
     await flushAsync();
-    expect(plugin.applyHeadlineMode).toHaveBeenCalled();
+    expect(plugin.applyHeadlineMode).toHaveBeenCalledTimes(4);
   });
 
-  it('rejects title sizes outside 5–60', async () => {
-    const { tab, plugin, settings } = setupWithApply({ headlineMode: true, headlineH1Size: 22 });
-    const input = nthInput(tab.containerEl, 4);
-    fire(input, '999');
-    expect(settings.headlineH1Size).toBe(22);
-    await flushAsync();
-    expect(plugin.applyHeadlineMode).not.toHaveBeenCalled();
+  it('clamps slider values to their range', async () => {
+    const { tab, settings } = setupWithApply({ headlineMode: true, headlineH1Size: 22 });
+    slide(nthInput(tab.containerEl, 4), '999');
+    expect(settings.headlineH1Size).toBe(45);
+    slide(nthInput(tab.containerEl, 6), '0');
+    expect(settings.headlineCategorySize).toBe(3);
   });
 
   it('starts disabled when headline mode is off', () => {
     const { tab } = setupWithApply({ headlineMode: false });
-    const input = nthInput(tab.containerEl, 4);
-    expect(input.disabled).toBe(true);
-    // its row should carry the visual-disabled class
-    const settingRow = input.closest('.setting-item') as HTMLElement | null;
-    expect(settingRow?.classList.contains('cmside-setting-disabled')).toBe(true);
+    for (const i of [4, 5, 6, 7]) {
+      const input = nthInput(tab.containerEl, i);
+      expect(input.disabled).toBe(true);
+      const settingRow = input.closest('.setting-item') as HTMLElement | null;
+      expect(settingRow?.classList.contains('cmside-setting-disabled')).toBe(true);
+    }
   });
 
   it('starts enabled when headline mode is on', () => {
     const { tab } = setupWithApply({ headlineMode: true });
-    const input = nthInput(tab.containerEl, 4);
-    expect(input.disabled).toBe(false);
-    const settingRow = input.closest('.setting-item') as HTMLElement | null;
-    expect(settingRow?.classList.contains('cmside-setting-disabled')).toBe(false);
+    for (const i of [4, 5, 6, 7]) {
+      const input = nthInput(tab.containerEl, i);
+      expect(input.disabled).toBe(false);
+      const settingRow = input.closest('.setting-item') as HTMLElement | null;
+      expect(settingRow?.classList.contains('cmside-setting-disabled')).toBe(false);
+    }
   });
 
   it('toggles the disabled state when headline mode is flipped', async () => {
     const { tab } = setupWithApply({ headlineMode: false });
     const titleInput = nthInput(tab.containerEl, 4);
+    const subtitleInput = nthInput(tab.containerEl, 7);
     const headlineToggle = nthInput(tab.containerEl, 3);
     expect(titleInput.disabled).toBe(true);
+    expect(subtitleInput.disabled).toBe(true);
     fire(headlineToggle, true);
     await flushAsync();
     expect(titleInput.disabled).toBe(false);
+    expect(subtitleInput.disabled).toBe(false);
     fire(headlineToggle, false);
     await flushAsync();
     expect(titleInput.disabled).toBe(true);
+    expect(subtitleInput.disabled).toBe(true);
   });
 });
 
 describe('Font size inputs', () => {
   it('persists font size and re-applies', async () => {
     const { tab, plugin, settings } = setup({ fontSize: 16 });
-    const input = nthInput(tab.containerEl, 5);
+    const input = nthInput(tab.containerEl, 8);
     fire(input, '14');
     expect(settings.fontSize).toBe(14);
     await flushAsync();
@@ -268,7 +288,7 @@ describe('Font size inputs', () => {
 
   it('rejects font sizes below 8 px', async () => {
     const { tab, plugin, settings } = setup({ fontSize: 16 });
-    const input = nthInput(tab.containerEl, 5);
+    const input = nthInput(tab.containerEl, 8);
     fire(input, '4');
     expect(settings.fontSize).toBe(16);
     await flushAsync();
@@ -279,7 +299,7 @@ describe('Font size inputs', () => {
 describe('Table font scale slider', () => {
   it('persists the scale as a fraction and re-applies', async () => {
     const { tab, plugin, settings } = setup({ tableFontScale: 0.75 });
-    const input = nthInput(tab.containerEl, 6);
+    const input = nthInput(tab.containerEl, 9);
     expect(input.type).toBe('range');
     input.value = '50';
     input.dispatchEvent(new Event('change'));
@@ -291,7 +311,7 @@ describe('Table font scale slider', () => {
 
   it('initializes from the current setting', () => {
     const { tab } = setup({ tableFontScale: 0.9 });
-    const input = nthInput(tab.containerEl, 6);
+    const input = nthInput(tab.containerEl, 9);
     expect(input.value).toBe('90');
   });
 });
